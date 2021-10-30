@@ -1,3 +1,3 @@
 module.exports = {
-    datastoreProvider: require('./datastoreProvider'),
+  datastoreProvider: require('./datastoreProvider'),
 }
