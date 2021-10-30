@@ -18,6 +18,9 @@
     "nodejs",
     "functional"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/monolithst/functional-models-orm-mongo/issues"
