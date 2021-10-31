@@ -1,20 +1,20 @@
 const { Model, TextProperty } = require('functional-models')
+const assert = require('chai').assert
 const {MongoClient} = require('mongodb')
 const d = require('../src/datastoreProvider')
 const { ormQueryBuilder } = require('functional-models-orm/src/ormQuery')
 
-
-const main = async () => {
-  const url = process.argv[2]
-  const client = new MongoClient(url)
-  await client.connect()
+const doit = async (client) => {
   const collection = client.db('testme').collection('testmodel1')
   const everything = await collection.find({}).toArray()
   await Promise.all(everything.map(x=> {
     return collection.deleteOne(x)
   }))
   const store = d({mongoClient: client, databaseName: 'testme'})
-  const m = Model('TestModel1', {name: TextProperty({required: true})})
+  const m = Model('TestModel1', {
+    name: TextProperty({required: true}),
+    myDate: TextProperty({}),
+  })
   const instance = m.create({name: 'my-name'})
   console.log("id")
   await instance.getId().then(console.log)
@@ -61,7 +61,61 @@ const main = async () => {
   await store.delete(instance).then(console.log)
   console.log("retrieve again")
   await store.retrieve(m, await instance.getId()).then(console.log)
-  client.close()
+
+  console.log('Date Querying')
+  const dateInstance = m.create({name: 'a-date', myDate: '2020-01-01'})
+  await store.save(dateInstance).then(console.log)
+  const dateInstance2 = m.create({name: 'a-date', myDate: new Date('2021-01-01').toISOString()})
+  await store.save(dateInstance2).then(console.log)
+  const dateInstance3 = m.create({name: 'a-date', myDate: new Date('2022-01-01')})
+  await store.save(dateInstance3).then(console.log)
+
+  console.log("all saved, now querying")
+  const dr1 = (await store.search(
+    m,
+    ormQueryBuilder()
+      .datesBefore('myDate', '2020-02-01',{})
+      .compile()
+  )).instances
+  console.log(dr1)
+  const dr1b = (await store.search(
+    m,
+    ormQueryBuilder()
+      .datesBefore('myDate', new Date('2020-02-01'),{})
+      .compile()
+  )).instances
+  console.log(dr1b)
+
+  const dr2 = (await store.search(
+    m,
+    ormQueryBuilder()
+      .datesAfter('myDate', '2020-02-01',{})
+      .compile()
+  )).instances
+  console.log(dr2)
+
+  const dr3 = (await store.search(
+    m,
+    ormQueryBuilder()
+      .datesAfter('myDate', new Date('2021-02-01'),{})
+      .compile()
+  )).instances
+  console.log(dr3)
+
+
+
+
+}
+
+const main = async () => {
+  const url = process.argv[2]
+  const client = new MongoClient(url)
+  await client.connect()
+  try {
+    await doit(client)
+  } finally {
+    client.close()
+  }
 }
 
 

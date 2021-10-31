@@ -26,6 +26,25 @@ const mongoDatastoreProvider = ({
     return { [partial.name]: value }
   }
 
+  const _buildDateQueries = (datesBefore={}, datesAfter={}) => {
+    const before = Object.entries(datesBefore)
+      .reduce((acc, [key, partial]) => {
+        return merge(acc, {
+          [key]: {
+            [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]: partial.date
+          }
+       })
+      }, {})
+    return Object.entries(datesAfter)
+      .reduce((acc, [key, partial]) => {
+        return merge(acc, {
+          [key]: {
+            [`$gt${partial.options.equalToAndAfter ? 'e' : ''}`]: partial.date.toISOString ? partial.date.toISOString() : partial.date
+          }
+        })
+      }, before)
+  }
+
   const search = (model, ormQuery) => {
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
@@ -34,8 +53,10 @@ const mongoDatastoreProvider = ({
         .reduce((acc, [_, partial]) => {
           return merge(acc, _buildMongoFindValue(partial))
         }, {})
+      const dateEntries = _buildDateQueries(ormQuery.datesBefore || {}, ormQuery.datesAfter || {})
       const take = ormQuery.take
-      const cursor = collection.find(properties)
+      const query = merge(properties, dateEntries)
+      const cursor = collection.find(query)
       const limited = take
         ? cursor.limit(take)
         : cursor
