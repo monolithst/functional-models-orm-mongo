@@ -1,5 +1,6 @@
 const omit = require('lodash/omit')
 const flow = require('lodash/flow')
+const groupBy = require('lodash/groupBy')
 const merge = require('lodash/merge')
 const { getCollectionNameForModel: defaultCollectionName } = require('./utils')
 
@@ -97,6 +98,37 @@ const mongoDatastoreProvider = ({
     })
   }
 
+  const bulkInsert = async instances => {
+    return Promise.resolve().then(async () => {
+      const groups = groupBy(instances, x=> x.meta.getModel().getName()) 
+      if (Object.keys(groups) > 1) {
+        throw new Error(`Cannot have more than one model type.`)
+      }
+
+      const model = instances[0].meta.getModel()
+      const collectionName = getCollectionNameForModel(model)
+      const collection = db.collection(collectionName)
+      const key = model.getPrimaryKeyName()
+
+      const query = (await Promise.all(instances.map(x=>x.functions.toObj())))
+        .map(obj => {
+          const doc = merge(obj, { _id: obj[key]})
+          return {
+            updateOne: {
+              filter: {_id: doc._id},
+              update: { $set: doc},
+              upsert: true,
+            }
+          }
+        })
+      const options = { upsert: true, ordered: true}
+      return collection.bulkWrite(query)
+        .then(x => {
+          return undefined
+        })
+    })
+  }
+
   const deleteObj = instance => {
     return Promise.resolve().then(async () => {
       const model = instance.meta.getModel()
@@ -111,6 +143,7 @@ const mongoDatastoreProvider = ({
   }
 
   return {
+    bulkInsert,
     search,
     retrieve,
     save,

@@ -4,12 +4,16 @@ const {MongoClient} = require('mongodb')
 const d = require('../src/datastoreProvider')
 const { ormQueryBuilder } = require('functional-models-orm/src/ormQuery')
 
-const doit = async (client) => {
-  const collection = client.db('testme').collection('testmodel1')
+const _deleteEverything = async (collection) => {
   const everything = await collection.find({}).toArray()
   await Promise.all(everything.map(x=> {
     return collection.deleteOne(x)
   }))
+}
+
+const doit = async (client) => {
+  const collection = client.db('testme').collection('testmodel1')
+  _deleteEverything(collection)
   const store = d({mongoClient: client, databaseName: 'testme'})
   const m = Model('TestModel1', {
     name: TextProperty({required: true}),
@@ -102,9 +106,22 @@ const doit = async (client) => {
   )).instances
   console.log(dr3)
 
+  console.log("Clearing everything")
+  _deleteEverything(collection)
 
+  console.log("Doing a bulk insert")
+  await store.bulkInsert([
+    m.create({ name: 'A'}),
+    m.create({ name: 'B'}),
+    m.create({ name: 'C'}),
+    m.create({ name: 'D'}),
+  ])
+  const bulkSearch = ormQueryBuilder()
+    .compile()
+  console.log("Searching for bulk inserts")
+  console.log(await store.search(m, bulkSearch))
 
-
+  _deleteEverything(collection)
 }
 
 const main = async () => {
