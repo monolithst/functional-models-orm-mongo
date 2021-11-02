@@ -110,7 +110,7 @@ const doit = async (client) => {
   _deleteEverything(collection)
 
   console.log("Doing a bulk insert")
-  await store.bulkInsert([
+  await store.bulkInsert(m, [
     m.create({ name: 'A'}),
     m.create({ name: 'B'}),
     m.create({ name: 'C'}),
@@ -123,7 +123,7 @@ const doit = async (client) => {
   _deleteEverything(collection)
 
   console.log("Testing sort")
-  await store.bulkInsert([
+  await store.bulkInsert(m, [
     m.create({ name: 'a3'}),
     m.create({ name: 'a2'}),
     m.create({ name: 'a1'}),

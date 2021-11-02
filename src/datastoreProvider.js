@@ -14,15 +14,25 @@ const mongoDatastoreProvider = ({
 
   const _buildMongoFindValue = partial => {
     const value = partial.value
-    const options = partial.options.caseSensitive === false ? { $options: 'i' } : {}
-    if (partial.options.startsWith) {
-      return { [partial.name]: { $regex: `^${value}`, ...options}}
+    if (partial.valueType === 'string') {
+      const options = partial.options.caseSensitive === false ? { $options: 'i' } : {}
+      if (partial.options.startsWith) {
+        return { [partial.name]: { $regex: `^${value}`, ...options}}
+      }
+      if (partial.options.endsWith) {
+        return { [partial.name]: { $regex: `${value}$`, ...options}}
+      }
+      if (partial.options.caseSensitive === false) {
+        return { [partial.name]: { $regex: `^${value}$`, ...options}}
+      }
     }
-    if (partial.options.endsWith) {
-      return { [partial.name]: { $regex: `${value}$`, ...options}}
-    }
-    if (partial.options.caseSensitive === false) {
-      return { [partial.name]: { $regex: `^${value}$`, ...options}}
+    if(partial.valueType === 'number') {
+      if (partial.options.lessThan) {
+        return { [partial.name]: { [`$lt${partial.options.equalTo ? 'e' : ''}`]: partial.value }}
+      }
+      if (partial.options.greaterThan) {
+        return { [partial.name]: { [`$gt${partial.options.equalTo ? 'e' : ''}`]: partial.value }}
+      }
     }
     return { [partial.name]: value }
   }
