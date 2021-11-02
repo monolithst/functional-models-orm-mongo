@@ -32,7 +32,7 @@ const mongoDatastoreProvider = ({
       .reduce((acc, [key, partial]) => {
         return merge(acc, {
           [key]: {
-            [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]: partial.date
+            [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]: partial.date.toISOString ? partial.date.toISOString() : partial.date
           }
        })
       }, {})
@@ -50,7 +50,7 @@ const mongoDatastoreProvider = ({
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
-      const properties = Object.entries(ormQuery.properties)
+      const properties = Object.entries(ormQuery.properties || {})
         .reduce((acc, [_, partial]) => {
           return merge(acc, _buildMongoFindValue(partial))
         }, {})
@@ -93,18 +93,17 @@ const mongoDatastoreProvider = ({
       const key = model.getPrimaryKeyName()
       const data = await instance.functions.toObj()
       const options = { upsert: true}
-      const insertData = merge(data, { _id: data[key]})
-      return collection.updateOne(insertData, { $set: data}, options)
+      const insertData = merge({}, data, { _id: data[key]})
+      return collection.updateOne({_id: data[key]}, { $set: insertData}, options)
         .then(x => {
           return data
         })
     })
   }
 
-  const bulkInsert = async instances => {
+  const bulkInsert = async (Model, instances) => {
     return Promise.resolve().then(async () => {
-      console.log("calling bulk insert")
-      const groups = groupBy(instances, x=> x.meta.getModel().getName()) 
+      const groups = groupBy(instances, x=> x.meta.getModel().getName())
       if (Object.keys(groups) > 1) {
         throw new Error(`Cannot have more than one model type.`)
       }
