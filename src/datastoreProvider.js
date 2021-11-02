@@ -58,9 +58,12 @@ const mongoDatastoreProvider = ({
       const take = ormQuery.take
       const query = merge(properties, dateEntries)
       const cursor = collection.find(query)
-      const limited = take
-        ? cursor.limit(take)
+      const sorted = ormQuery.sort
+        ? cursor.sort({[ormQuery.sort.key]: ormQuery.sort.order ? 1 : -1})
         : cursor
+      const limited = take
+        ? sorted.limit(take)
+        : sorted
       return limited.toArray()
         .then(result => {
           return {
@@ -100,6 +103,7 @@ const mongoDatastoreProvider = ({
 
   const bulkInsert = async instances => {
     return Promise.resolve().then(async () => {
+      console.log("calling bulk insert")
       const groups = groupBy(instances, x=> x.meta.getModel().getName()) 
       if (Object.keys(groups) > 1) {
         throw new Error(`Cannot have more than one model type.`)

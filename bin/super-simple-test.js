@@ -120,7 +120,28 @@ const doit = async (client) => {
     .compile()
   console.log("Searching for bulk inserts")
   console.log(await store.search(m, bulkSearch))
+  _deleteEverything(collection)
 
+  console.log("Testing sort")
+  await store.bulkInsert([
+    m.create({ name: 'a3'}),
+    m.create({ name: 'a2'}),
+    m.create({ name: 'a1'}),
+    m.create({ name: 'a4'}),
+  ])
+  console.log("Searching for bulk inserts")
+  const sortResult = await store.search(m, ormQueryBuilder()
+    .property('name', 'a', {startsWith: true})
+    .sort('name', true)
+    .compile()
+  )
+  console.log(sortResult)
+  const sortResult2 = await store.search(m, ormQueryBuilder()
+    .property('name', 'a', {startsWith: true})
+    .sort('name', false)
+    .compile()
+  )
+  console.log(sortResult2)
   _deleteEverything(collection)
 }
 
