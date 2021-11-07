@@ -14,6 +14,10 @@ const mongoDatastoreProvider = ({
 
   const _buildMongoFindValue = partial => {
     const value = partial.value
+    // Is this a javascript date??
+    if (value && value.toISOString) {
+      return { [partial.name]: value.toISOString() }
+    }
     if (partial.valueType === 'string') {
       const options = partial.options.caseSensitive === false ? { $options: 'i' } : {}
       if (partial.options.startsWith) {
@@ -90,6 +94,9 @@ const mongoDatastoreProvider = ({
       const collection = db.collection(collectionName)
       return collection.findOne({ _id: id})
         .then(x=> {
+          if (!x) {
+            return null
+          }
           return omit(x, '_id')
         })
     })
