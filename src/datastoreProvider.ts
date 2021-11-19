@@ -1,52 +1,63 @@
-const omit = require('lodash/omit')
-const flow = require('lodash/flow')
-const groupBy = require('lodash/groupBy')
-const merge = require('lodash/merge')
-const { getCollectionNameForModel: defaultCollectionName } = require('./utils')
+import omit from 'lodash/omit'
+import flow from 'lodash/flow'
+import groupBy from 'lodash/groupBy'
+import merge from 'lodash/merge'
+import { getCollectionNameForModel as defaultCollectionName } from './utils'
+import { EQUALITY_SYMBOLS, OrmQueryStatement, OrmQuery, PropertyStatement, DatesAfterStatement, DatesBeforeStatement } from 'functional-models-orm/dist/interfaces'
 
+const _equalitySymbolToMongoSymbol = {
+  [EQUALITY_SYMBOLS.EQUALS]: '$eq',
+  [EQUALITY_SYMBOLS.GT]: '$gt',
+  [EQUALITY_SYMBOLS.GTE]: '$gte',
+  [EQUALITY_SYMBOLS.LT]: '$lt',
+  [EQUALITY_SYMBOLS.LTE]: '$lte',
+}
 
 const mongoDatastoreProvider = ({
   mongoClient,
   databaseName,
   getCollectionNameForModel = defaultCollectionName,
-}) => {
+}:{mongoClient: any, databaseName: string, getCollectionNameForModel: (modelInstance: any) => string}) => {
   const db = mongoClient.db(databaseName)
 
-  const _buildMongoFindValue = partial => {
+  const _buildMongoFindValue = (partial: PropertyStatement) => {
     const value = partial.value
     // Is this a javascript date??
     if (value && value.toISOString) {
       return { [partial.name]: value.toISOString() }
     }
     if (partial.valueType === 'string') {
-      const options = partial.options.caseSensitive === false ? { $options: 'i' } : {}
+      const options = !partial.options.caseSensitive ? { $options: 'i' } : {}
       if (partial.options.startsWith) {
         return { [partial.name]: { $regex: `^${value}`, ...options}}
       }
       if (partial.options.endsWith) {
         return { [partial.name]: { $regex: `${value}$`, ...options}}
       }
-      if (partial.options.caseSensitive === false) {
+      if (!partial.options.caseSensitive) {
         return { [partial.name]: { $regex: `^${value}$`, ...options}}
       }
     }
     if(partial.valueType === 'number') {
-      if (partial.options.lessThan) {
-        return { [partial.name]: { [`$lt${partial.options.equalTo ? 'e' : ''}`]: partial.value }}
+      const mongoSymbol = _equalitySymbolToMongoSymbol[partial.options.equalitySymbol]
+      if (!mongoSymbol) {
+        throw new Error(`Symbol ${partial.options.equalitySymbol} is unhandled`)
       }
-      if (partial.options.greaterThan) {
-        return { [partial.name]: { [`$gt${partial.options.equalTo ? 'e' : ''}`]: partial.value }}
-      }
+
+      return { [partial.name]: { [mongoSymbol]: partial.value }}
     }
     return { [partial.name]: value }
   }
 
-  const _buildDateQueries = (datesBefore={}, datesAfter={}) => {
+  const _buildDateQueries = (
+    datesBefore: {[s: string]: DatesBeforeStatement},
+    datesAfter: {[s: string]: DatesAfterStatement},
+  ) => {
     const before = Object.entries(datesBefore)
       .reduce((acc, [key, partial]) => {
         return merge(acc, {
           [key]: {
-            [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]: partial.date.toISOString ? partial.date.toISOString() : partial.date
+            [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]: partial.date instanceof Date ? partial.date.toISOString() : partial.date
           }
        })
       }, {})
@@ -54,13 +65,13 @@ const mongoDatastoreProvider = ({
       .reduce((acc, [key, partial]) => {
         return merge(acc, {
           [key]: {
-            [`$gt${partial.options.equalToAndAfter ? 'e' : ''}`]: partial.date.toISOString ? partial.date.toISOString() : partial.date
+            [`$gt${partial.options.equalToAndAfter ? 'e' : ''}`]: partial.date instanceof Date ? partial.date.toISOString() : partial.date
           }
         })
       }, before)
   }
 
-  const search = (model, ormQuery) => {
+  const search = (model: any, ormQuery: OrmQuery) => {
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
@@ -79,7 +90,7 @@ const mongoDatastoreProvider = ({
         ? sorted.limit(take)
         : sorted
       return limited.toArray()
-        .then(result => {
+        .then((result: any[]) => {
           return {
             instances: result.map(x=> omit(x, '_id')),
             page: null,
@@ -88,12 +99,12 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const retrieve = (model, id) => {
+  const retrieve = (model: any, id: string) => {
     return Promise.resolve().then(() => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
       return collection.findOne({ _id: id})
-        .then(x=> {
+        .then((x: any)=> {
           if (!x) {
             return null
           }
@@ -102,7 +113,7 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const save = async instance => {
+  const save = async (instance: any) => {
     return Promise.resolve().then(async () => {
       const model = instance.meta.getModel()
       const collectionName = getCollectionNameForModel(model)
@@ -112,16 +123,16 @@ const mongoDatastoreProvider = ({
       const options = { upsert: true}
       const insertData = merge({}, data, { _id: data[key]})
       return collection.updateOne({_id: data[key]}, { $set: insertData}, options)
-        .then(x => {
+        .then(() => {
           return data
         })
     })
   }
 
-  const bulkInsert = async (Model, instances) => {
+  const bulkInsert = async (Model: any, instances: any[]) => {
     return Promise.resolve().then(async () => {
       const groups = groupBy(instances, x=> x.meta.getModel().getName())
-      if (Object.keys(groups) > 1) {
+      if (Object.keys(groups).length > 1) {
         throw new Error(`Cannot have more than one model type.`)
       }
 
@@ -143,20 +154,20 @@ const mongoDatastoreProvider = ({
         })
       const options = { upsert: true, ordered: true}
       return collection.bulkWrite(query)
-        .then(x => {
+        .then(() => {
           return undefined
         })
     })
   }
 
-  const deleteObj = instance => {
+  const deleteObj = (instance: any) => {
     return Promise.resolve().then(async () => {
       const model = instance.meta.getModel()
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
       const primaryKey = await instance.functions.getPrimaryKey()
       return collection.deleteOne({ _id: primaryKey })
-        .then(x=> {
+        .then(() => {
           return null
         })
     })
@@ -173,4 +184,4 @@ const mongoDatastoreProvider = ({
 
 
 
-module.exports = mongoDatastoreProvider
+export default mongoDatastoreProvider

@@ -1,8 +1,10 @@
 const { Model, TextProperty } = require('functional-models')
 const assert = require('chai').assert
 const {MongoClient} = require('mongodb')
-const d = require('../src/datastoreProvider')
-const { ormQueryBuilder } = require('functional-models-orm/src/ormQuery')
+const d = require('../dist/datastoreProvider').default
+const { ormQuery } = require('functional-models-orm')
+
+const ormQueryBuilder = ormQuery.ormQueryBuilder
 
 const _deleteEverything = async (collection) => {
   const everything = await collection.find({}).toArray()
@@ -147,6 +149,7 @@ const doit = async (client) => {
 
 const main = async () => {
   const url = process.argv[2]
+  console.log(url)
   const client = new MongoClient(url)
   await client.connect()
   try {
