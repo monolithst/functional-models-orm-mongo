@@ -33,7 +33,7 @@
   "author": "Mike Cornwell",
   "dependencies": {
     "functional-models": "^1.0.28",
-    "functional-models-orm": "^1.0.28",
+    "functional-models-orm": "^1.0.29",
     "lodash": "^4.17.21",
     "mongodb": "^4.1.3"
   },
