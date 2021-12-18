@@ -1,4 +1,4 @@
-const { Model, TextProperty } = require('functional-models')
+const { BaseModel, TextProperty } = require('functional-models')
 const assert = require('chai').assert
 const {MongoClient} = require('mongodb')
 const d = require('../dist/datastoreProvider').default
@@ -15,19 +15,21 @@ const _deleteEverything = async (collection) => {
 
 const doit = async (client) => {
   const collection = client.db('testme').collection('testmodel1')
-  _deleteEverything(collection)
+  await _deleteEverything(collection)
   const store = d({mongoClient: client, databaseName: 'testme'})
-  const m = Model('TestModel1', {
-    name: TextProperty({required: true}),
-    myDate: TextProperty({}),
+  const m = BaseModel('TestModel1', {
+    properties: {
+      name: TextProperty({required: true}),
+      myDate: TextProperty({}),
+    }
   })
   const instance = m.create({name: 'my-name'})
   console.log("id")
-  await instance.getId().then(console.log)
+  await instance.get.id().then(console.log)
   console.log("saving")
   await store.save(instance).then(console.log)
   console.log("retrieve")
-  const x = await store.retrieve(m, await instance.getId())
+  const x = await store.retrieve(m, await instance.get.id())
   console.log("back")
   console.log(x)
 
@@ -66,7 +68,7 @@ const doit = async (client) => {
   console.log("deleting")
   await store.delete(instance).then(console.log)
   console.log("retrieve again")
-  await store.retrieve(m, await instance.getId()).then(console.log)
+  await store.retrieve(m, await instance.get.id()).then(console.log)
 
   console.log('Date Querying')
   const dateInstance = m.create({name: 'a-date', myDate: '2020-01-01'})
@@ -109,7 +111,7 @@ const doit = async (client) => {
   console.log(dr3)
 
   console.log("Clearing everything")
-  _deleteEverything(collection)
+  await _deleteEverything(collection)
 
   console.log("Doing a bulk insert")
   await store.bulkInsert(m, [
@@ -122,7 +124,7 @@ const doit = async (client) => {
     .compile()
   console.log("Searching for bulk inserts")
   console.log(await store.search(m, bulkSearch))
-  _deleteEverything(collection)
+  await _deleteEverything(collection)
 
   console.log("Testing sort")
   await store.bulkInsert(m, [
@@ -144,11 +146,14 @@ const doit = async (client) => {
     .compile()
   )
   console.log(sortResult2)
-  _deleteEverything(collection)
+  await _deleteEverything(collection)
 }
 
 const main = async () => {
   const url = process.argv[2]
+  if (!url) {
+    throw new Error(`Must include a mongodb:// url`)
+  }
   console.log(url)
   const client = new MongoClient(url)
   await client.connect()

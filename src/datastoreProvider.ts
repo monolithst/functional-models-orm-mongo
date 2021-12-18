@@ -1,9 +1,18 @@
 import omit from 'lodash/omit'
-import flow from 'lodash/flow'
 import groupBy from 'lodash/groupBy'
 import merge from 'lodash/merge'
-import { getCollectionNameForModel as defaultCollectionName } from './utils'
-import { EQUALITY_SYMBOLS, OrmQueryStatement, OrmQuery, PropertyStatement, DatesAfterStatement, DatesBeforeStatement } from 'functional-models-orm/dist/interfaces'
+import {getCollectionNameForModel as defaultCollectionName} from './utils'
+import {
+  DatastoreProvider,
+  DatesAfterStatement,
+  DatesBeforeStatement,
+  OrmQuery,
+  PropertyStatement,
+  OrmModelInstance,
+  OrmModel,
+} from 'functional-models-orm/interfaces'
+import {FunctionalModel, PrimaryKeyType, Model } from 'functional-models/interfaces'
+import {EQUALITY_SYMBOLS} from 'functional-models-orm/constants'
 
 const _equalitySymbolToMongoSymbol = {
   [EQUALITY_SYMBOLS.EQUALS]: '$eq',
@@ -17,7 +26,7 @@ const mongoDatastoreProvider = ({
   mongoClient,
   databaseName,
   getCollectionNameForModel = defaultCollectionName,
-}:{mongoClient: any, databaseName: string, getCollectionNameForModel: (modelInstance: any) => string}) => {
+}:{mongoClient: any, databaseName: string, getCollectionNameForModel: <T extends FunctionalModel>(model: Model<T>) => string}) : DatastoreProvider => {
   const db = mongoClient.db(databaseName)
 
   const _buildMongoFindValue = (partial: PropertyStatement) => {
@@ -39,7 +48,7 @@ const mongoDatastoreProvider = ({
       }
     }
     if(partial.valueType === 'number') {
-      const mongoSymbol = _equalitySymbolToMongoSymbol[partial.options.equalitySymbol]
+      const mongoSymbol = _equalitySymbolToMongoSymbol[partial.options.equalitySymbol || EQUALITY_SYMBOLS.EQUALS]
       if (!mongoSymbol) {
         throw new Error(`Symbol ${partial.options.equalitySymbol} is unhandled`)
       }
@@ -71,7 +80,7 @@ const mongoDatastoreProvider = ({
       }, before)
   }
 
-  const search = (model: any, ormQuery: OrmQuery) => {
+  const search = <T extends FunctionalModel>(model: OrmModel<T>, ormQuery: OrmQuery) => {
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
@@ -99,7 +108,7 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const retrieve = (model: any, id: string) => {
+  const retrieve = <T extends FunctionalModel>(model: OrmModel<T>, id: PrimaryKeyType) => {
     return Promise.resolve().then(() => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
@@ -113,15 +122,17 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const save = async (instance: any) => {
+  const save = async <T extends FunctionalModel>(instance: OrmModelInstance<T>) => {
     return Promise.resolve().then(async () => {
-      const model = instance.meta.getModel()
-      const collectionName = getCollectionNameForModel(model)
+      const model = instance.getModel()
+      const collectionName = getCollectionNameForModel<T>(model)
       const collection = db.collection(collectionName)
       const key = model.getPrimaryKeyName()
-      const data = await instance.functions.toObj()
+      const data = await instance.toObj()
       const options = { upsert: true}
+      // @ts-ignore
       const insertData = merge({}, data, { _id: data[key]})
+      // @ts-ignore
       return collection.updateOne({_id: data[key]}, { $set: insertData}, options)
         .then(() => {
           return data
@@ -129,21 +140,25 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const bulkInsert = async (Model: any, instances: any[]) => {
+  const bulkInsert = async <T extends FunctionalModel>(Model: OrmModel<T>, instances: readonly OrmModelInstance<T>[]) => {
     return Promise.resolve().then(async () => {
-      const groups = groupBy(instances, x=> x.meta.getModel().getName())
+      const groups = groupBy(instances, x=> x.getModel().getName())
       if (Object.keys(groups).length > 1) {
         throw new Error(`Cannot have more than one model type.`)
       }
 
-      const model = instances[0].meta.getModel()
+      const model = instances[0].getModel()
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
       const key = model.getPrimaryKeyName()
 
-      const query = (await Promise.all(instances.map(x=>x.functions.toObj())))
-        .map(obj => {
-          const doc = merge(obj, { _id: obj[key]})
+      const query = (await Promise.all(instances.map(x=>x.toObj())))
+        .map((obj) => {
+          if (!obj) {
+            throw new Error(`An object was empty`)
+          }
+          // @ts-ignore
+          const doc = merge({}, obj, { _id: obj[key]})
           return {
             updateOne: {
               filter: {_id: doc._id},
@@ -160,12 +175,12 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const deleteObj = (instance: any) => {
+  const deleteObj = <T extends FunctionalModel>(instance: OrmModelInstance<T>) => {
     return Promise.resolve().then(async () => {
-      const model = instance.meta.getModel()
-      const collectionName = getCollectionNameForModel(model)
+      const model = instance.getModel()
+      const collectionName = getCollectionNameForModel<T>(model)
       const collection = db.collection(collectionName)
-      const primaryKey = await instance.functions.getPrimaryKey()
+      const primaryKey = await instance.getPrimaryKey()
       return collection.deleteOne({ _id: primaryKey })
         .then(() => {
           return null
