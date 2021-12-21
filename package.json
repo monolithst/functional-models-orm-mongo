@@ -1,6 +1,6 @@
 {
   "name": "functional-models-orm-mongo",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "An ORM for functional-models that uses mongodb.",
   "main": "index.js",
   "types": "index.d.ts",
@@ -31,8 +31,8 @@
   },
   "author": "Mike Cornwell",
   "dependencies": {
-    "functional-models": "^1.1.20",
-    "functional-models-orm": "^1.1.1",
+    "functional-models": "^1.1.22",
+    "functional-models-orm": "^1.1.2",
     "lodash": "^4.17.21",
     "mongodb": "^4.1.3"
   },
