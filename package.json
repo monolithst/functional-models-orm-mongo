@@ -10,9 +10,6 @@
     "coverage": "npm run build && nyc --all --reporter=lcov npm test",
     "build": "rm -Rf ./dist && mkdir -p ./dist && cp -R ./src/* ./dist &&  cd ./dist && tsc -p ../tsconfig.json"
   },
-  "files": [
-    "dist/"
-  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/monolithst/functional-models-orm-mongo.git"
@@ -32,8 +29,8 @@
   },
   "author": "Mike Cornwell",
   "dependencies": {
-    "functional-models": "1.0.28",
-    "functional-models-orm": "1.0.29",
+    "functional-models": "git@github.com:monolithst/functional-models.git#1.0",
+    "functional-models-orm": "git@github.com:monolithst/functional-models.git#1.0",
     "lodash": "^4.17.21",
     "mongodb": "^4.1.3"
   },
