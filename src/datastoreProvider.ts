@@ -122,7 +122,7 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const save = async <T extends FunctionalModel>(instance: OrmModelInstance<T>) => {
+  const save = async <T extends FunctionalModel, TModel extends OrmModel<T>>(instance: OrmModelInstance<T, TModel>) => {
     return Promise.resolve().then(async () => {
       const model = instance.getModel()
       const collectionName = getCollectionNameForModel<T>(model)
@@ -140,7 +140,10 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const bulkInsert = async <T extends FunctionalModel>(Model: OrmModel<T>, instances: readonly OrmModelInstance<T>[]) => {
+  const bulkInsert = async <T extends FunctionalModel, TModel extends OrmModel<T>>(
+    model: TModel,
+    instances: readonly OrmModelInstance<T, TModel>[]
+  ) => {
     return Promise.resolve().then(async () => {
       const groups = groupBy(instances, x=> x.getModel().getName())
       if (Object.keys(groups).length > 1) {
@@ -175,7 +178,7 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const deleteObj = <T extends FunctionalModel>(instance: OrmModelInstance<T>) => {
+  const deleteObj = <T extends FunctionalModel, TModel extends OrmModel<T>>(instance: OrmModelInstance<T, TModel>) => {
     return Promise.resolve().then(async () => {
       const model = instance.getModel()
       const collectionName = getCollectionNameForModel<T>(model)
