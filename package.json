@@ -4,7 +4,6 @@
   "description": "An ORM for functional-models that uses mongodb.",
   "main": "dist/index.js",
   "scripts": {
-    "prepublish": "npm run build",
     "test": "npm run build && nyc mocha --recursive --full-trace --require source-map-support/register ./test/**/*.test.js",
     "feature-tests": "./node_modules/@cucumber/cucumber/bin/cucumber-js",
     "coverage": "npm run build && nyc --all --reporter=lcov npm test",
@@ -30,7 +29,7 @@
   "author": "Mike Cornwell",
   "dependencies": {
     "functional-models": "git@github.com:monolithst/functional-models.git#1.0",
-    "functional-models-orm": "git@github.com:monolithst/functional-models.git#1.0",
+    "functional-models-orm": "git@github.com:monolithst/functional-models-orm.git#1.0",
     "lodash": "^4.17.21",
     "mongodb": "^4.1.3"
   },

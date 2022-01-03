@@ -76,19 +76,19 @@ var mongoDatastoreProvider = function (_a) {
         if (partial.valueType === 'string') {
             var options = !partial.options.caseSensitive ? { $options: 'i' } : {};
             if (partial.options.startsWith) {
-                return _b = {}, _b[partial.name] = __assign({ $regex: "^" + value }, options), _b;
+                return _b = {}, _b[partial.name] = __assign({ $regex: "^".concat(value) }, options), _b;
             }
             if (partial.options.endsWith) {
-                return _c = {}, _c[partial.name] = __assign({ $regex: value + "$" }, options), _c;
+                return _c = {}, _c[partial.name] = __assign({ $regex: "".concat(value, "$") }, options), _c;
             }
             if (!partial.options.caseSensitive) {
-                return _d = {}, _d[partial.name] = __assign({ $regex: "^" + value + "$" }, options), _d;
+                return _d = {}, _d[partial.name] = __assign({ $regex: "^".concat(value, "$") }, options), _d;
             }
         }
         if (partial.valueType === 'number') {
             var mongoSymbol = _equalitySymbolToMongoSymbol[partial.options.equalitySymbol];
             if (!mongoSymbol) {
-                throw new Error("Symbol " + partial.options.equalitySymbol + " is unhandled");
+                throw new Error("Symbol ".concat(partial.options.equalitySymbol, " is unhandled"));
             }
             return _e = {}, _e[partial.name] = (_f = {}, _f[mongoSymbol] = partial.value, _f), _e;
         }
@@ -101,7 +101,7 @@ var mongoDatastoreProvider = function (_a) {
             var key = _a[0], partial = _a[1];
             return (0, merge_1.default)(acc, (_b = {},
                 _b[key] = (_c = {},
-                    _c["$lt" + (partial.options.equalToAndBefore ? 'e' : '')] = partial.date instanceof Date ? partial.date.toISOString() : partial.date,
+                    _c["$lt".concat(partial.options.equalToAndBefore ? 'e' : '')] = partial.date instanceof Date ? partial.date.toISOString() : partial.date,
                     _c),
                 _b));
         }, {});
@@ -111,7 +111,7 @@ var mongoDatastoreProvider = function (_a) {
             var key = _a[0], partial = _a[1];
             return (0, merge_1.default)(acc, (_b = {},
                 _b[key] = (_c = {},
-                    _c["$gt" + (partial.options.equalToAndAfter ? 'e' : '')] = partial.date instanceof Date ? partial.date.toISOString() : partial.date,
+                    _c["$gt".concat(partial.options.equalToAndAfter ? 'e' : '')] = partial.date instanceof Date ? partial.date.toISOString() : partial.date,
                     _c),
                 _b));
         }, before);
