@@ -1,29 +1,17 @@
-import omit from 'lodash/omit'
-import groupBy from 'lodash/groupBy'
-import merge from 'lodash/merge'
-import { getCollectionNameForModel as defaultCollectionName } from './utils'
-import {
-  DatastoreProvider,
-  DatesAfterStatement,
-  DatesBeforeStatement,
-  OrmQuery,
-  PropertyStatement,
-} from 'functional-models-orm/interfaces'
+import { DatastoreProvider, OrmQuery } from 'functional-models-orm/interfaces'
 import {
   FunctionalModel,
-  PrimaryKeyType,
   Model,
   ModelInstance,
+  PrimaryKeyType,
 } from 'functional-models/interfaces'
-import { EQUALITY_SYMBOLS } from 'functional-models-orm/constants'
-
-const _equalitySymbolToMongoSymbol = {
-  [EQUALITY_SYMBOLS.EQUALS]: '$eq',
-  [EQUALITY_SYMBOLS.GT]: '$gt',
-  [EQUALITY_SYMBOLS.GTE]: '$gte',
-  [EQUALITY_SYMBOLS.LT]: '$lt',
-  [EQUALITY_SYMBOLS.LTE]: '$lte',
-}
+import groupBy from 'lodash/groupBy'
+import merge from 'lodash/merge'
+import omit from 'lodash/omit'
+import {
+  buildSearchQuery,
+  getCollectionNameForModel as defaultCollectionName,
+} from './lib'
 
 const mongoDatastoreProvider = ({
   mongoClient,
@@ -38,64 +26,6 @@ const mongoDatastoreProvider = ({
 }): DatastoreProvider => {
   const db = mongoClient.db(databaseName)
 
-  const _buildMongoFindValue = (partial: PropertyStatement) => {
-    const value = partial.value
-    // Is this a javascript date??
-    if (value && value.toISOString) {
-      return { [partial.name]: value.toISOString() }
-    }
-    if (partial.valueType === 'string') {
-      const options = !partial.options.caseSensitive ? { $options: 'i' } : {}
-      if (partial.options.startsWith) {
-        return { [partial.name]: { $regex: `^${value}`, ...options } }
-      }
-      if (partial.options.endsWith) {
-        return { [partial.name]: { $regex: `${value}$`, ...options } }
-      }
-      if (!partial.options.caseSensitive) {
-        return { [partial.name]: { $regex: `^${value}$`, ...options } }
-      }
-    }
-    if (partial.valueType === 'number') {
-      const mongoSymbol =
-        _equalitySymbolToMongoSymbol[
-          partial.options.equalitySymbol || EQUALITY_SYMBOLS.EQUALS
-        ]
-      if (!mongoSymbol) {
-        throw new Error(`Symbol ${partial.options.equalitySymbol} is unhandled`)
-      }
-
-      return { [partial.name]: { [mongoSymbol]: partial.value } }
-    }
-    return { [partial.name]: value }
-  }
-
-  const _buildDateQueries = (
-    datesBefore: { [s: string]: DatesBeforeStatement },
-    datesAfter: { [s: string]: DatesAfterStatement }
-  ) => {
-    const before = Object.entries(datesBefore).reduce((acc, [key, partial]) => {
-      return merge(acc, {
-        [key]: {
-          [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]:
-            partial.date instanceof Date
-              ? partial.date.toISOString()
-              : partial.date,
-        },
-      })
-    }, {})
-    return Object.entries(datesAfter).reduce((acc, [key, partial]) => {
-      return merge(acc, {
-        [key]: {
-          [`$gt${partial.options.equalToAndAfter ? 'e' : ''}`]:
-            partial.date instanceof Date
-              ? partial.date.toISOString()
-              : partial.date,
-        },
-      })
-    }, before)
-  }
-
   const search = <T extends FunctionalModel>(
     model: Model<T>,
     ormQuery: OrmQuery
@@ -103,22 +33,12 @@ const mongoDatastoreProvider = ({
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
-      const properties = Object.entries(ormQuery.properties || {}).reduce(
-        (acc, [_, partial]) => {
-          return merge(acc, _buildMongoFindValue(partial))
-        },
-        {}
-      )
-      const dateEntries = _buildDateQueries(
-        ormQuery.datesBefore || {},
-        ormQuery.datesAfter || {}
-      )
-      const take = ormQuery.take
-      const query = merge(properties, dateEntries)
+      const query = buildSearchQuery(ormQuery)
       const cursor = collection.find(query)
       const sorted = ormQuery.sort
         ? cursor.sort({ [ormQuery.sort.key]: ormQuery.sort.order ? 1 : -1 })
         : cursor
+      const take = ormQuery.take
       const limited = take ? sorted.limit(take) : sorted
       return limited.toArray().then((result: any[]) => {
         return {
@@ -157,12 +77,14 @@ const mongoDatastoreProvider = ({
       const options = { upsert: true }
       // @ts-ignore
       const insertData = merge({}, data, { _id: data[key] })
-      return collection
-        // @ts-ignore
-        .updateOne({ _id: data[key] }, { $set: insertData }, options)
-        .then(() => {
-          return data
-        })
+      return (
+        collection
+          // @ts-ignore
+          .updateOne({ _id: data[key] }, { $set: insertData }, options)
+          .then(() => {
+            return data
+          })
+      )
     })
   }
 
@@ -197,7 +119,8 @@ const mongoDatastoreProvider = ({
           }
         }
       )
-      const options = { upsert: true, ordered: true }
+      // TODO: This wasn't used but i'm not sure if it needed to be.
+      //const options = { upsert: true, ordered: true }
       return collection.bulkWrite(query).then(() => {
         return undefined
       })
