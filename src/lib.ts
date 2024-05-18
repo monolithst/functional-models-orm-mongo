@@ -49,6 +49,9 @@ const buildDateQueries = (
 }
 
 const buildSearchQuery = (ormQuery: OrmQuery) => {
+  if (!ormQuery.chain) {
+    return {}
+  }
   // If we have no OR statements, its all ands, and its simple.
   const isComplex = Boolean(ormQuery.chain.find(c => c.type === 'or'))
   if (!isComplex) {
