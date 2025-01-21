@@ -1,16 +1,17 @@
-import { DatastoreProvider, OrmQuery } from 'functional-models-orm/interfaces'
 import {
-  FunctionalModel,
-  Model,
+  DataDescription,
   ModelInstance,
+  ModelType,
   PrimaryKeyType,
-} from 'functional-models/interfaces'
+} from 'functional-models'
+import { DatastoreProvider } from 'functional-models-orm'
 import groupBy from 'lodash/groupBy'
 import merge from 'lodash/merge'
 import omit from 'lodash/omit'
 import {
-  buildSearchQuery,
+  AQuery,
   getCollectionNameForModel as defaultCollectionName,
+  v2,
 } from './lib'
 
 const mongoDatastoreProvider = ({
@@ -20,21 +21,26 @@ const mongoDatastoreProvider = ({
 }: {
   mongoClient: any
   databaseName: string
-  getCollectionNameForModel: <T extends FunctionalModel>(
-    model: Model<T>
+  getCollectionNameForModel: <T extends DataDescription>(
+    model: ModelType<T>
   ) => string
 }): DatastoreProvider => {
   const db = mongoClient.db(databaseName)
 
-  const search = <T extends FunctionalModel>(
-    model: Model<T>,
-    ormQuery: OrmQuery
+  const search = <T extends DataDescription>(
+    model: ModelType<T>,
+    ormQuery: AQuery
   ) => {
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
-      const query = buildSearchQuery(ormQuery)
-      const cursor = collection.find(query)
+      //const query = buildSearchQuery(ormQuery)
+      const query = v2(ormQuery)
+
+      console.log(JSON.stringify(query, null, 2))
+      //const cursor = collection.find(query)
+      const cursor = collection.aggregate(query)
+
       const sorted = ormQuery.sort
         ? cursor.sort({ [ormQuery.sort.key]: ormQuery.sort.order ? 1 : -1 })
         : cursor
@@ -49,8 +55,8 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const retrieve = <T extends FunctionalModel>(
-    model: Model<T>,
+  const retrieve = <T extends DataDescription>(
+    model: ModelType<T>,
     id: PrimaryKeyType
   ) => {
     return Promise.resolve().then(() => {
@@ -65,14 +71,14 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const save = async <T extends FunctionalModel, TModel extends Model<T>>(
-    instance: ModelInstance<T, TModel>
+  const save = async <T extends DataDescription>(
+    instance: ModelInstance<T>
   ) => {
     return Promise.resolve().then(async () => {
       const model = instance.getModel()
       const collectionName = getCollectionNameForModel<T>(model)
       const collection = db.collection(collectionName)
-      const key = model.getPrimaryKeyName()
+      const key = model.getModelDefinition().primaryKeyName
       const data = await instance.toObj()
       const options = { upsert: true }
       // @ts-ignore
@@ -88,9 +94,9 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const bulkInsert = async <T extends FunctionalModel, TModel extends Model<T>>(
-    model: TModel,
-    instances: readonly ModelInstance<T, TModel>[]
+  const bulkInsert = async <T extends DataDescription>(
+    model: ModelType<T>,
+    instances: readonly ModelInstance<T>[]
   ) => {
     return Promise.resolve().then(async () => {
       const groups = groupBy(instances, x => x.getModel().getName())
@@ -101,9 +107,9 @@ const mongoDatastoreProvider = ({
       const model = instances[0].getModel()
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
-      const key = model.getPrimaryKeyName()
+      const key = model.getModelDefinition().primaryKeyName
 
-      const query = (await Promise.all(instances.map(x => x.toObj()))).map(
+      const query = (await Promise.all(instances.map(x => x.toObj<T>()))).map(
         obj => {
           if (!obj) {
             throw new Error(`An object was empty`)
@@ -127,9 +133,7 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const deleteObj = <T extends FunctionalModel, TModel extends Model<T>>(
-    instance: ModelInstance<T, TModel>
-  ) => {
+  const deleteObj = <T extends DataDescription>(instance: ModelInstance<T>) => {
     return Promise.resolve().then(async () => {
       const model = instance.getModel()
       const collectionName = getCollectionNameForModel<T>(model)
