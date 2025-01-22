@@ -255,7 +255,127 @@ fu([
   ],
 ])
 
-const processMongoArray = (o: Tokens[]): { $and: any } => {
+/*
+// Builder Approach - Creates statement query
+builderV2()
+  .property('something', 'else')
+  .or()
+  .complex(x => x 
+    .property('another', 'value')
+    .and()
+    .complex(y => y
+      .property('another2', 'value2')
+      .and()
+      .property('another3', 'value3')
+    )
+  )
+  .compile()
+*/
+
+/*
+// Just writing it out approach - Writing a statement query
+[
+  property('something', 'else'),
+  'OR',
+  [
+    property('another', 'value'),
+    'AND',
+    [
+      property('another2', 'value2'),
+      'AND',
+      property('another3', 'value3'),
+    ]
+  ]
+]
+*/
+
+const link = (data: AQuery) => {
+  return {
+    and: () => {
+      return builderV2({...data, query: data.query.concat('AND')})
+    },
+    or: () => {
+      return builderV2({...data, query: data.query.concat('OR')})
+    },
+    compile: () => {
+      return data
+      //return v2({query: data})
+    }
+  }
+}
+
+type BuilderLink = {
+  and: () => BuilderV2,
+  or: () => BuilderV2,
+  compile: () => AQuery // Final query
+}
+
+type BuilderV2 = {
+  complex: (subBuilderFunc: SubBuilderFunction) => BuilderLink,
+}
+
+type SubBuilderFunction = (builder: BuilderV2|AQuery) => AQuery 
+
+
+const builderV2 = (data: AQuery|undefined=undefined) => {
+  data = data || { query: []}
+
+  const myProperty = (...args: any[]) => {
+    // @ts-ignore
+    const p = property(...args)
+    return link({...data, query: data.query.concat(p)})
+  }
+
+  const complex = (subBuilderFunc: SubBuilderFunction) => {
+    const subBuilder = builderV2()
+    const result = subBuilderFunc(subBuilder)
+    console.log("subbuilder result")
+    console.log(result)
+    // @ts-ignore
+    if (result.compile) {
+      // @ts-ignore
+      return link({...data, query: data.query.concat([result.compile().query])})
+    }
+      // @ts-ignore
+    return link({...data, query: data.query.concat([result.query])})
+  }
+
+  const take = (num: number) => {
+    const parsed = parseInt(num as unknown as string, 10)
+    if (Number.isNaN(parsed)) {
+      throw new Error(`${num} must be an integer.`)
+    }
+    return link({...data, take: {
+      type: 'take',
+      value: parsed,
+    }})
+  }
+
+  const sort = (key: string, isAscending = true) => {
+    if (typeof isAscending !== 'boolean') {
+      throw new Error('Must be a boolean type')
+    }
+    const sortStatement: SortStatement = {
+      type: 'sort',
+      key,
+      order: isAscending,
+    }
+    return link({...data, sort: sortStatement})
+  }
+
+  return {
+    complex,
+    property: myProperty,
+    take,
+    sort,
+  }
+}
+
+type Either = "$and"|"$or"
+const processMongoArray = (o: Tokens[]): { 
+  "$and"?: any,
+  "$or"?: any,
+} => {
   // If we don't have any AND/OR its all an AND
   if (o.every(x => x !== 'AND' && x !== 'OR')) {
     // All ANDS
@@ -277,19 +397,27 @@ const processMongoArray = (o: Tokens[]): { $and: any } => {
     throw new Error('Must separate each statement with an AND or OR')
   }
   const threes = threeitize(o)
-  const allAndStatements = threes.map(([a, l, b]) => {
+  return threes.toReversed().reduce((acc, [a, l, b]) => {
     if (l !== 'AND' && l !== 'OR') {
       throw new Error(`${l} is not a valid symbol`)
     }
     const aQuery = handleMongoQuery(a)
+    // After the first time, acc is always the previous.
+    if (Object.entries(acc).length > 0) {
+      return {
+        [`$${l.toLowerCase()}`]: [aQuery, acc],
+      }
+    }
     const bQuery = handleMongoQuery(b)
     return {
       [`$${l.toLowerCase()}`]: [aQuery, bQuery],
     }
-  })
+  }, {})
+  /*
   return {
-    $and: allAndStatements,
+    $or: allAndStatements,
   }
+ */
 }
 
 const doProperty = (p: PropertyStatement) => {
@@ -317,14 +445,6 @@ type AQuery = {
   query: OverallQuery
 }
 
-const v2 = (o: AQuery) => {
-  return [
-    {
-      $match: handleMongoQuery(o.query),
-    },
-  ]
-}
-
 const threeitize = <T>(data: T[]): T[][] => {
   if (data.length === 0 || data.length === 1) {
     return []
@@ -338,6 +458,15 @@ const threeitize = <T>(data: T[]): T[][] => {
   return [three, ...moreThrees]
 }
 
+
+const v2 = (o: AQuery) => {
+  return [
+    {
+      $match: handleMongoQuery(o.query),
+    },
+  ]
+}
+
 export {
   AQuery,
   buildDateQueries,
@@ -347,4 +476,5 @@ export {
   OverallQuery,
   property,
   v2,
+  builderV2,
 }

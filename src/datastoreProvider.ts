@@ -41,12 +41,14 @@ const mongoDatastoreProvider = ({
       //const cursor = collection.find(query)
       const cursor = collection.aggregate(query)
 
+      /*
       const sorted = ormQuery.sort
         ? cursor.sort({ [ormQuery.sort.key]: ormQuery.sort.order ? 1 : -1 })
         : cursor
       const take = ormQuery.take
       const limited = take ? sorted.limit(take) : sorted
-      return limited.toArray().then((result: any[]) => {
+     */
+      return cursor.toArray().then((result: any[]) => {
         return {
           instances: result.map(x => omit(x, '_id')),
           page: null,
@@ -147,6 +149,7 @@ const mongoDatastoreProvider = ({
 
   return {
     bulkInsert,
+    // @ts-ignore
     search,
     retrieve,
     save,
