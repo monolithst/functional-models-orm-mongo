@@ -1,56 +1,67 @@
-import { DatastoreProvider, OrmQuery } from 'functional-models-orm/interfaces'
 import {
-  FunctionalModel,
-  Model,
+  DataDescription,
+  DatastoreAdapter,
   ModelInstance,
+  ModelType,
+  OrmSearch,
   PrimaryKeyType,
-} from 'functional-models/interfaces'
+} from 'functional-models'
 import groupBy from 'lodash/groupBy'
 import merge from 'lodash/merge'
 import omit from 'lodash/omit'
 import {
-  buildSearchQuery,
   getCollectionNameForModel as defaultCollectionName,
+  toMongo,
 } from './lib'
 
-const mongoDatastoreProvider = ({
+type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] }
+
+const create = ({
   mongoClient,
   databaseName,
   getCollectionNameForModel = defaultCollectionName,
 }: {
   mongoClient: any
   databaseName: string
-  getCollectionNameForModel: <T extends FunctionalModel>(
-    model: Model<T>
+  getCollectionNameForModel?: <T extends DataDescription>(
+    model: ModelType<T>
   ) => string
-}): DatastoreProvider => {
+}): WithRequired<DatastoreAdapter, 'bulkInsert' | 'count'> => {
   const db = mongoClient.db(databaseName)
 
-  const search = <T extends FunctionalModel>(
-    model: Model<T>,
-    ormQuery: OrmQuery
+  const search = <T extends DataDescription>(
+    model: ModelType<T>,
+    ormQuery: OrmSearch
   ) => {
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
-      const query = buildSearchQuery(ormQuery)
-      const cursor = collection.find(query)
+      const query = toMongo(ormQuery)
+
+      const cursor =
+        ormQuery.query.length > 0
+          ? collection.aggregate(query)
+          : collection.find({})
+
       const sorted = ormQuery.sort
-        ? cursor.sort({ [ormQuery.sort.key]: ormQuery.sort.order ? 1 : -1 })
+        ? cursor.sort({
+            [ormQuery.sort.key]: ormQuery.sort.order === 'asc' ? 1 : -1,
+          })
         : cursor
       const take = ormQuery.take
       const limited = take ? sorted.limit(take) : sorted
+
       return limited.toArray().then((result: any[]) => {
         return {
           instances: result.map(x => omit(x, '_id')),
-          page: null,
+          page: undefined,
         }
       })
     })
   }
 
-  const retrieve = <T extends FunctionalModel>(
-    model: Model<T>,
+  const retrieve = <T extends DataDescription>(
+    model: ModelType<T>,
     id: PrimaryKeyType
   ) => {
     return Promise.resolve().then(() => {
@@ -65,18 +76,18 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const save = async <T extends FunctionalModel, TModel extends Model<T>>(
-    instance: ModelInstance<T, TModel>
+  const save = async <T extends DataDescription>(
+    instance: ModelInstance<T>
   ) => {
     return Promise.resolve().then(async () => {
       const model = instance.getModel()
       const collectionName = getCollectionNameForModel<T>(model)
       const collection = db.collection(collectionName)
-      const key = model.getPrimaryKeyName()
+      const key = model.getModelDefinition().primaryKeyName
       const data = await instance.toObj()
       const options = { upsert: true }
       // @ts-ignore
-      const insertData = merge({}, data, { _id: data[key] })
+      const insertData = merge(data, { _id: data[key] })
       return (
         collection
           // @ts-ignore
@@ -88,9 +99,9 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const bulkInsert = async <T extends FunctionalModel, TModel extends Model<T>>(
-    model: TModel,
-    instances: readonly ModelInstance<T, TModel>[]
+  const bulkInsert = async <T extends DataDescription>(
+    model: ModelType<T>,
+    instances: readonly ModelInstance<T>[]
   ) => {
     return Promise.resolve().then(async () => {
       const groups = groupBy(instances, x => x.getModel().getName())
@@ -101,13 +112,10 @@ const mongoDatastoreProvider = ({
       const model = instances[0].getModel()
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
-      const key = model.getPrimaryKeyName()
+      const key = model.getModelDefinition().primaryKeyName
 
-      const query = (await Promise.all(instances.map(x => x.toObj()))).map(
+      const query = (await Promise.all(instances.map(x => x.toObj<T>()))).map(
         obj => {
-          if (!obj) {
-            throw new Error(`An object was empty`)
-          }
           // @ts-ignore
           const doc = merge({}, obj, { _id: obj[key] })
           return {
@@ -127,27 +135,36 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const deleteObj = <T extends FunctionalModel, TModel extends Model<T>>(
-    instance: ModelInstance<T, TModel>
+  const deleteObj = <T extends DataDescription>(
+    model: ModelType<T>,
+    id: PrimaryKeyType
   ) => {
     return Promise.resolve().then(async () => {
-      const model = instance.getModel()
       const collectionName = getCollectionNameForModel<T>(model)
       const collection = db.collection(collectionName)
-      const primaryKey = await instance.getPrimaryKey()
-      return collection.deleteOne({ _id: primaryKey }).then(() => {
+      return collection.deleteOne({ _id: id }).then(() => {
         return null
       })
     })
   }
 
+  const count = <T extends DataDescription>(
+    model: ModelType<T>
+  ): Promise<number> => {
+    const collectionName = getCollectionNameForModel<T>(model)
+    const collection = db.collection(collectionName)
+    return collection.count()
+  }
+
   return {
     bulkInsert,
+    // @ts-ignore
     search,
     retrieve,
     save,
     delete: deleteObj,
+    count,
   }
 }
 
-export default mongoDatastoreProvider
+export { create }

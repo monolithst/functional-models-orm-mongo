@@ -1,152 +1,132 @@
 import {
-  DatesAfterStatement,
-  DatesBeforeStatement,
-  EQUALITY_SYMBOLS,
-  OrmQuery,
-  PropertyStatement,
-} from 'functional-models-orm/interfaces'
-import { FunctionalModel, Model } from 'functional-models/interfaces'
-import merge from 'lodash/merge'
+  DataDescription,
+  EqualitySymbol,
+  isPropertyBasedQuery,
+  ModelType,
+  OrmSearch,
+  PropertyQuery,
+  QueryTokens,
+  threeitize,
+  validateOrmSearch,
+} from 'functional-models'
+import kebabCase from 'lodash/kebabCase'
 
 const _equalitySymbolToMongoSymbol = {
-  [EQUALITY_SYMBOLS.EQUALS]: '$eq',
-  [EQUALITY_SYMBOLS.GT]: '$gt',
-  [EQUALITY_SYMBOLS.GTE]: '$gte',
-  [EQUALITY_SYMBOLS.LT]: '$lt',
-  [EQUALITY_SYMBOLS.LTE]: '$lte',
+  [EqualitySymbol.eq]: '$eq',
+  [EqualitySymbol.gt]: '$gt',
+  [EqualitySymbol.gte]: '$gte',
+  [EqualitySymbol.lt]: '$lt',
+  [EqualitySymbol.lte]: '$lte',
 }
 
-const getCollectionNameForModel = <T extends FunctionalModel>(
-  model: Model<T>
+const getCollectionNameForModel = <T extends DataDescription>(
+  model: ModelType<T>
 ) => {
-  return model.getName().toLowerCase().replace('_', '-').replace(' ', '-')
+  return kebabCase(model.getName()).toLowerCase()
 }
 
-const buildDateQueries = (
-  datesBefore: { [s: string]: DatesBeforeStatement },
-  datesAfter: { [s: string]: DatesAfterStatement }
-) => {
-  const before = Object.entries(datesBefore).reduce((acc, [key, partial]) => {
-    return merge(acc, {
-      [key]: {
-        [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]:
-          partial.date instanceof Date
-            ? partial.date.toISOString()
-            : partial.date,
-      },
-    })
-  }, {})
-  return Object.entries(datesAfter).reduce((acc, [key, partial]) => {
-    return merge(acc, {
-      [key]: {
-        [`$gt${partial.options.equalToAndAfter ? 'e' : ''}`]:
-          partial.date instanceof Date
-            ? partial.date.toISOString()
-            : partial.date,
-      },
-    })
-  }, before)
-}
-
-const buildSearchQuery = (ormQuery: OrmQuery) => {
-  if (!ormQuery.chain) {
-    return {}
-  }
-  // If we have no OR statements, its all ands, and its simple.
-  const isComplex = Boolean(ormQuery.chain.find(c => c.type === 'or'))
-  if (!isComplex) {
-    const properties = Object.entries(ormQuery.properties || {}).reduce(
-      (acc, [_, partial]) => {
-        return merge(acc, buildMongoFindValue(partial))
-      },
-      {}
-    )
-    const dateEntries = buildDateQueries(
-      ormQuery.datesBefore || {},
-      ormQuery.datesAfter || {}
-    )
-    return merge(properties, dateEntries)
-  }
-  const properties = ormQuery.chain.reduce(
-    ([previousOr, acc], statement) => {
-      if (statement.type === 'or') {
-        // If there is already an or statement going, just move on
-        if (previousOr) {
-          return [previousOr, acc]
-        }
-        // We have an actual or statement we need to fill
-        const newPrevious = acc.slice(-1)[0]
-        return [newPrevious, acc]
-      }
-      if (statement.type === 'and') {
-        // Regardless if we had an or statement or not we are moving on
-        return [undefined, acc]
-      }
-      if (statement.type === 'property') {
-        const value = buildMongoFindValue(statement)
-        // Is this part of an or? If so, we need to keep it going
-        if (previousOr) {
-          previousOr.$or.push(value)
-          return [previousOr, acc]
-        }
-
-        return [
-          undefined,
-          acc.concat({
-            $or: [value],
-          }),
-        ]
-      }
-      return acc
-    },
-    [undefined, []] as [any, any]
-  )[1]
-  const propertyQuery = {
-    $and: properties,
-  }
-  const dateEntries = buildDateQueries(
-    ormQuery.datesBefore || {},
-    ormQuery.datesAfter || {}
-  )
-  return merge(propertyQuery, dateEntries)
-}
-
-const buildMongoFindValue = (partial: PropertyStatement) => {
-  const value = partial.value
+const buildMongoFindValue = (query: PropertyQuery) => {
+  const value = query.value
   // Is this a javascript date??
   if (value && value.toISOString) {
-    return { [partial.name]: value.toISOString() }
+    return { [query.key]: value.toISOString() }
   }
-  if (partial.valueType === 'string') {
-    const options = !partial.options.caseSensitive ? { $options: 'i' } : {}
-    if (partial.options.startsWith) {
-      return { [partial.name]: { $regex: `^${value}`, ...options } }
+  if (query.valueType === 'string') {
+    const options = !query.options.caseSensitive ? { $options: 'i' } : {}
+    if (query.options.startsWith) {
+      return { [query.key]: { $regex: `^${value}`, ...options } }
     }
-    if (partial.options.endsWith) {
-      return { [partial.name]: { $regex: `${value}$`, ...options } }
+    if (query.options.endsWith) {
+      return { [query.key]: { $regex: `${value}$`, ...options } }
     }
-    if (!partial.options.caseSensitive) {
-      return { [partial.name]: { $regex: `^${value}$`, ...options } }
+    if (!query.options.caseSensitive) {
+      return { [query.key]: { $regex: `^${value}$`, ...options } }
     }
   }
 
-  if (partial.valueType === 'number') {
-    const mongoSymbol =
-      _equalitySymbolToMongoSymbol[
-        partial.options.equalitySymbol || EQUALITY_SYMBOLS.EQUALS
-      ]
+  if (query.valueType === 'number') {
+    const mongoSymbol = _equalitySymbolToMongoSymbol[query.equalitySymbol]
     if (!mongoSymbol) {
-      throw new Error(`Symbol ${partial.options.equalitySymbol} is unhandled`)
+      throw new Error(`Symbol ${query.equalitySymbol} is unhandled`)
     }
-
-    return { [partial.name]: { [mongoSymbol]: partial.value } }
+    return { [query.key]: { [mongoSymbol]: query.value } }
   }
-  return { [partial.name]: value }
+  return { [query.key]: value }
 }
 
-export {
-  getCollectionNameForModel,
-  buildSearchQuery,
-  buildDateQueries,
-  buildMongoFindValue,
+const processMongoArray = (
+  o: QueryTokens[]
+):
+  | {
+      $and?: any
+      $or?: any
+    }
+  | [] => {
+  // If we don't have any AND/OR its all an AND
+  if (o.every(x => x !== 'AND' && x !== 'OR')) {
+    // All ANDS
+    return {
+      $and: o.map(handleMongoQuery),
+    }
+  }
+  // eslint-disable-next-line functional/immutable-data
+  const threes = threeitize(o).reverse()
+  return threes.reduce((acc, [a, l, b]) => {
+    const aQuery = handleMongoQuery(a)
+    // After the first time, acc is always the previous.
+    if (Object.entries(acc).length > 0) {
+      return {
+        // @ts-ignore
+        [`$${l.toLowerCase()}`]: [aQuery, acc],
+      }
+    }
+    const bQuery = handleMongoQuery(b)
+    return {
+      // @ts-ignore
+      [`$${l.toLowerCase()}`]: [aQuery, bQuery],
+    }
+  }, {})
 }
+
+const handleMongoQuery = (o: QueryTokens) => {
+  if (Array.isArray(o)) {
+    return processMongoArray(o)
+  }
+  /* istanbul ignore next */
+  if (isPropertyBasedQuery(o)) {
+    if (o.type === 'property') {
+      return buildMongoFindValue(o)
+    }
+    if (o.type === 'datesBefore') {
+      return {
+        [o.key]: {
+          [`$lt${o.options.equalToAndBefore ? 'e' : ''}`]: o.date,
+        },
+      }
+    }
+    /* istanbul ignore next */
+    if (o.type === 'datesAfter') {
+      return {
+        [o.key]: {
+          [`$gt${o.options.equalToAndAfter ? 'e' : ''}`]: o.date,
+        },
+      }
+    }
+  }
+  /* istanbul ignore next */
+  throw new Error(`Unhandled querytoken ${o}`)
+}
+
+const toMongo = (o: OrmSearch) => {
+  validateOrmSearch(o)
+  if (o.query.length < 1) {
+    return { $match: [] }
+  }
+  return [
+    {
+      $match: handleMongoQuery(o.query),
+    },
+  ]
+}
+
+export { getCollectionNameForModel, toMongo }
