@@ -9,7 +9,7 @@
     "eslint": "eslint .",
     "test": "mocha -r ts-node/register test/**/*.test.ts",
     "test:coverage": "nyc npm run test",
-    "feature-tests": "./node_modules/.bin/cucumber-js -p default",
+    "test:features": "TS_NODE_PROJECT=tsconfig.cucumber.json ./node_modules/.bin/cucumber-js --require ./features/step_definitions/steps.ts --require-module ts-node/register",
     "coverage": "nyc --all --reporter=lcov npm test",
     "build": "rm -Rf ./dist && tsc && cp package.json ./dist && cp README.md ./dist",
     "build:watch": "nodemon -e '*' --watch ./src --exec npm run build",
@@ -34,8 +34,7 @@
   },
   "author": "Mike Cornwell",
   "dependencies": {
-    "functional-models": "^3.0.5",
-    "functional-models-orm": "file:../functional-models-orm/dist",
+    "functional-models": "^3.0.11",
     "lodash": "^4.17.21",
     "mongodb": "^6.12.0"
   },
@@ -64,6 +63,7 @@
     "report-dir": "coverage"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^11.2.0",
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@types/chai": "^4.3.16",
     "@types/lodash": "^4.17.1",
@@ -71,7 +71,6 @@
     "@typescript-eslint/eslint-plugin": "^7.8.0",
     "babel-eslint": "^10.1.0",
     "chai": "^4.3.0",
-    "cucumber": "^6.0.7",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.1",

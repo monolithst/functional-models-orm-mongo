@@ -1,13 +1,13 @@
-import { DataDescription, ModelType } from 'functional-models'
 import {
-  DatesAfterStatement,
-  DatesBeforeStatement,
+  DataDescription,
   EqualitySymbol,
-  PropertyStatement, QueryTokens,
-  SearchQuery,
+  isPropertyBasedQuery,
+  ModelType,
+  OrmSearch,
+  PropertyQuery,
+  QueryTokens,
   threeitize,
-} from 'functional-models-orm'
-import merge from 'lodash/merge'
+} from 'functional-models'
 
 const _equalitySymbolToMongoSymbol = {
   [EqualitySymbol.eq]: '$eq',
@@ -23,138 +23,47 @@ const getCollectionNameForModel = <T extends DataDescription>(
   return model.getName().toLowerCase().replace('_', '-').replace(' ', '-')
 }
 
-const buildDateQueries = (
-  datesBefore: { [s: string]: DatesBeforeStatement },
-  datesAfter: { [s: string]: DatesAfterStatement }
-) => {
-  const before = Object.entries(datesBefore).reduce((acc, [key, partial]) => {
-    return merge(acc, {
-      [key]: {
-        [`$lt${partial.options.equalToAndBefore ? 'e' : ''}`]:
-          partial.date instanceof Date
-            ? partial.date.toISOString()
-            : partial.date,
-      },
-    })
-  }, {})
-  return Object.entries(datesAfter).reduce((acc, [key, partial]) => {
-    return merge(acc, {
-      [key]: {
-        [`$gt${partial.options.equalToAndAfter ? 'e' : ''}`]:
-          partial.date instanceof Date
-            ? partial.date.toISOString()
-            : partial.date,
-      },
-    })
-  }, before)
-}
-/*
-
-const buildSearchQuery = (ormQuery: OrmQuery) => {
-  if (!ormQuery.chain) {
-    return {}
-  }
-  // If we have no OR statements, its all ands, and its simple.
-  const isComplex = Boolean(ormQuery.chain.find((c: any) => c.type === 'or'))
-  if (!isComplex) {
-    const properties = Object.entries(ormQuery.properties || {}).reduce(
-      (acc, [_, partial]) => {
-        return merge(acc, buildMongoFindValue(partial))
-      },
-      {}
-    )
-    const dateEntries = buildDateQueries(
-      ormQuery.datesBefore || {},
-      ormQuery.datesAfter || {}
-    )
-    return merge(properties, dateEntries)
-  }
-  const properties = ormQuery.chain.reduce(
-    (
-      [previousOr, acc]: [previous: any, acc: any],
-      statement: OrmQueryStatement
-    ) => {
-      if (statement.type === 'or') {
-        // If there is already an or statement going, just move on
-        if (previousOr) {
-          return [previousOr, acc]
-        }
-        // We have an actual or statement we need to fill
-        const newPrevious = acc.slice(-1)[0]
-        return [newPrevious, acc]
-      }
-      if (statement.type === 'and') {
-        // Regardless if we had an or statement or not we are moving on
-        return [undefined, acc]
-      }
-      if (statement.type === 'property') {
-        const value = buildMongoFindValue(statement)
-        // Is this part of an or? If so, we need to keep it going
-        if (previousOr) {
-          previousOr.$or.push(value)
-          return [previousOr, acc]
-        }
-
-        return [
-          undefined,
-          acc.concat({
-            $or: [value],
-          }),
-        ]
-      }
-      return acc
-    },
-    [undefined, []] as [any, any]
-  )[1]
-  const propertyQuery = {
-    $and: properties,
-  }
-  const dateEntries = buildDateQueries(
-    ormQuery.datesBefore || {},
-    ormQuery.datesAfter || {}
-  )
-  return merge(propertyQuery, dateEntries)
-}
-
- */
-
-const buildMongoFindValue = (partial: PropertyStatement) => {
+const buildMongoFindValue = (partial: PropertyQuery) => {
   const value = partial.value
   // Is this a javascript date??
   if (value && value.toISOString) {
-    return { [partial.name]: value.toISOString() }
+    return { [partial.key]: value.toISOString() }
   }
   if (partial.valueType === 'string') {
     const options = !partial.options.caseSensitive ? { $options: 'i' } : {}
     if (partial.options.startsWith) {
-      return { [partial.name]: { $regex: `^${value}`, ...options } }
+      return { [partial.key]: { $regex: `^${value}`, ...options } }
     }
     if (partial.options.endsWith) {
-      return { [partial.name]: { $regex: `${value}$`, ...options } }
+      return { [partial.key]: { $regex: `${value}$`, ...options } }
     }
     if (!partial.options.caseSensitive) {
-      return { [partial.name]: { $regex: `^${value}$`, ...options } }
+      return { [partial.key]: { $regex: `^${value}$`, ...options } }
     }
   }
 
   if (partial.valueType === 'number') {
     const mongoSymbol =
-      _equalitySymbolToMongoSymbol[
-        partial.options.equalitySymbol || EqualitySymbol.eq
-      ]
+      _equalitySymbolToMongoSymbol[partial.equalitySymbol || EqualitySymbol.eq]
     if (!mongoSymbol) {
-      throw new Error(`Symbol ${partial.options.equalitySymbol} is unhandled`)
+      throw new Error(`Symbol ${partial.equalitySymbol} is unhandled`)
     }
-
-    return { [partial.name]: { [mongoSymbol]: partial.value } }
+    return { [partial.key]: { [mongoSymbol]: partial.value } }
   }
-  return { [partial.name]: value }
+  return { [partial.key]: value }
 }
 
-const processMongoArray = (o: QueryTokens[]): {
-  "$and"?: any,
-  "$or"?: any,
-} => {
+const processMongoArray = (
+  o: QueryTokens[]
+):
+  | {
+      $and?: any
+      $or?: any
+    }
+  | [] => {
+  if (o.length === 0) {
+    return []
+  }
   // If we don't have any AND/OR its all an AND
   if (o.every(x => x !== 'AND' && x !== 'OR')) {
     // All ANDS
@@ -192,47 +101,39 @@ const processMongoArray = (o: QueryTokens[]): {
       [`$${l.toLowerCase()}`]: [aQuery, bQuery],
     }
   }, {})
-  /*
-  return {
-    $or: allAndStatements,
-  }
- */
 }
 
 const handleMongoQuery = (o: QueryTokens) => {
   if (Array.isArray(o)) {
     return processMongoArray(o)
   }
-  if (o === 'AND' || o === 'OR') {
-    throw new Error(``)
-  }
-  if (o.type === 'property') {
-    return buildMongoFindValue(o)
-  }
-  if (o.type === 'datesBefore') {
+  if (isPropertyBasedQuery(o)) {
+    if (o.type === 'property') {
+      return buildMongoFindValue(o)
+    }
+    if (o.type === 'datesBefore') {
       return {
         [o.key]: {
           [`$lt${o.options.equalToAndBefore ? 'e' : ''}`]:
-            o.date instanceof Date
-              ? o.date.toISOString()
-              : o.date,
+            // @ts-ignore
+            o.date instanceof Date ? o.date.toISOString() : o.date,
         },
       }
-  }
-  if (o.type === 'datesAfter') {
+    }
+    if (o.type === 'datesAfter') {
       return {
         [o.key]: {
           [`$gt${o.options.equalToAndAfter ? 'e' : ''}`]:
-            o.date instanceof Date
-              ? o.date.toISOString()
-              : o.date,
+            // @ts-ignore
+            o.date instanceof Date ? o.date.toISOString() : o.date,
         },
       }
+    }
   }
   throw new Error('Unhandled currently')
 }
 
-const v2 = (o: SearchQuery) => {
+const toMongo = (o: OrmSearch) => {
   return [
     {
       $match: handleMongoQuery(o.query),
@@ -240,9 +141,4 @@ const v2 = (o: SearchQuery) => {
   ]
 }
 
-export {
-  buildDateQueries,
-  buildMongoFindValue,
-  getCollectionNameForModel,
-  v2,
-}
+export { buildMongoFindValue, getCollectionNameForModel, toMongo }

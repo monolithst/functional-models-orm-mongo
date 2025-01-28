@@ -1,17 +1,16 @@
 import { assert } from 'chai'
-import { ormQuery } from 'functional-models-orm'
-import { buildSearchQuery } from '../../src/lib'
+import { queryBuilder } from 'functional-models'
+import { toMongo } from '../../src/lib'
 
 describe('/src/lib.ts', () => {
-  describe('#buildSearchQuery()', () => {
+  describe('#toMongo()', () => {
     it('should handle a simple AND query correctly', () => {
-      const query = ormQuery
-        .ormQueryBuilder()
+      const query = queryBuilder()
         .property('test', 'value1')
         .and()
         .property('test2', 'value2')
         .compile()
-      const actual = buildSearchQuery(query)
+      const actual = toMongo(query)
       const expected = {
         test: {
           $options: 'i',
@@ -22,15 +21,16 @@ describe('/src/lib.ts', () => {
           $regex: '^value2$',
         },
       }
+      // @ts-ignore
       assert.deepEqual(actual, expected)
     })
     it('should handle a simple query correctly', () => {
-      const query = ormQuery
-        .ormQueryBuilder()
+      const query = queryBuilder()
         .property('test', 'value1')
+        .and()
         .property('test2', 'value2')
         .compile()
-      const actual = buildSearchQuery(query)
+      const actual = toMongo(query)
       const expected = {
         test: {
           $options: 'i',
@@ -41,16 +41,16 @@ describe('/src/lib.ts', () => {
           $regex: '^value2$',
         },
       }
+      // @ts-ignore
       assert.deepEqual(actual, expected)
     })
     it('should handle a simple OR query correctly', () => {
-      const query = ormQuery
-        .ormQueryBuilder()
+      const query = queryBuilder()
         .property('test', 'value1')
         .or()
         .property('test', 'value2')
         .compile()
-      const actual = buildSearchQuery(query)
+      const actual = toMongo(query)
       const expected = {
         $and: [
           {
@@ -71,11 +71,11 @@ describe('/src/lib.ts', () => {
           },
         ],
       }
+      // @ts-ignore
       assert.deepEqual(actual, expected)
     })
     it('should handle a very complex AND/OR query correctly', () => {
-      const query = ormQuery
-        .ormQueryBuilder()
+      const query = queryBuilder()
         .property('test', 'value1')
         .or()
         .property('test', 'value2')
@@ -86,7 +86,7 @@ describe('/src/lib.ts', () => {
         .or()
         .property('prop4', 4)
         .compile()
-      const actual = buildSearchQuery(query)
+      const actual = toMongo(query)
       const expected = {
         $and: [
           {
@@ -133,6 +133,7 @@ describe('/src/lib.ts', () => {
           },
         ],
       }
+      // @ts-ignore
       assert.deepEqual(actual, expected)
     })
   })

@@ -1,54 +1,55 @@
 import {
   DataDescription,
+  DatastoreAdapter,
   ModelInstance,
   ModelType,
+  OrmSearch,
   PrimaryKeyType,
 } from 'functional-models'
-import { DatastoreProvider } from 'functional-models-orm'
 import groupBy from 'lodash/groupBy'
 import merge from 'lodash/merge'
 import omit from 'lodash/omit'
 import {
-  AQuery,
   getCollectionNameForModel as defaultCollectionName,
-  v2,
+  toMongo,
 } from './lib'
 
-const mongoDatastoreProvider = ({
+const create = ({
   mongoClient,
   databaseName,
   getCollectionNameForModel = defaultCollectionName,
 }: {
   mongoClient: any
   databaseName: string
-  getCollectionNameForModel: <T extends DataDescription>(
+  getCollectionNameForModel?: <T extends DataDescription>(
     model: ModelType<T>
   ) => string
-}): DatastoreProvider => {
+}): DatastoreAdapter => {
   const db = mongoClient.db(databaseName)
 
   const search = <T extends DataDescription>(
     model: ModelType<T>,
-    ormQuery: AQuery
+    ormQuery: OrmSearch
   ) => {
     return Promise.resolve().then(async () => {
       const collectionName = getCollectionNameForModel(model)
       const collection = db.collection(collectionName)
-      //const query = buildSearchQuery(ormQuery)
-      const query = v2(ormQuery)
+      const query = toMongo(ormQuery)
 
-      console.log(JSON.stringify(query, null, 2))
-      //const cursor = collection.find(query)
-      const cursor = collection.aggregate(query)
+      const cursor =
+        ormQuery.query.length > 0
+          ? collection.aggregate(query)
+          : collection.find({})
 
-      /*
       const sorted = ormQuery.sort
-        ? cursor.sort({ [ormQuery.sort.key]: ormQuery.sort.order ? 1 : -1 })
+        ? cursor.sort({
+            [ormQuery.sort.key]: ormQuery.sort.order === 'asc' ? 1 : -1,
+          })
         : cursor
       const take = ormQuery.take
       const limited = take ? sorted.limit(take) : sorted
-     */
-      return cursor.toArray().then((result: any[]) => {
+
+      return limited.toArray().then((result: any[]) => {
         return {
           instances: result.map(x => omit(x, '_id')),
           page: null,
@@ -135,13 +136,14 @@ const mongoDatastoreProvider = ({
     })
   }
 
-  const deleteObj = <T extends DataDescription>(instance: ModelInstance<T>) => {
+  const deleteObj = <T extends DataDescription>(
+    model: ModelType<T>,
+    id: PrimaryKeyType
+  ) => {
     return Promise.resolve().then(async () => {
-      const model = instance.getModel()
       const collectionName = getCollectionNameForModel<T>(model)
       const collection = db.collection(collectionName)
-      const primaryKey = await instance.getPrimaryKey()
-      return collection.deleteOne({ _id: primaryKey }).then(() => {
+      return collection.deleteOne({ _id: id }).then(() => {
         return null
       })
     })
@@ -157,4 +159,4 @@ const mongoDatastoreProvider = ({
   }
 }
 
-export default mongoDatastoreProvider
+export { create }

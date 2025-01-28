@@ -1,3 +1,5 @@
-import datastoreProvider from './datastoreProvider'
+import * as datastoreAdapter from './datastoreAdapter'
 
-export { datastoreProvider }
+export { getCollectionNameForModel } from './lib'
+
+export { datastoreAdapter }
