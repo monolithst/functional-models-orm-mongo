@@ -1,9 +1,271 @@
 import { assert } from 'chai'
-import { queryBuilder } from 'functional-models'
-import { toMongo } from '../../src/lib'
+import {
+  DatastoreValueType,
+  EqualitySymbol,
+  queryBuilder,
+} from 'functional-models'
+import { getCollectionNameForModel, toMongo } from '../../src/lib'
 
 describe('/src/lib.ts', () => {
+  describe('#getCollectionNameForModel()', () => {
+    it('should get the expected name', () => {
+      // @ts-ignore
+      const actual = getCollectionNameForModel({
+        // @ts-ignore
+        getName: () => 'MyPluralNames',
+      })
+      const expected = 'my-plural-names'
+      assert.deepEqual(actual, expected)
+    })
+  })
   describe('#toMongo()', () => {
+    it('should throw an exception with an unhandled equalitySymbol', () => {
+      assert.throws(() => {
+        toMongo({
+          query: [
+            {
+              type: 'property',
+              key: 'test',
+              value: 5,
+              // @ts-ignore
+              equalitySymbol: '==',
+              valueType: DatastoreValueType.number,
+            },
+          ],
+        })
+      }, 'Symbol == is unhandled')
+    })
+    it('should handle a datesAfter when its a date', () => {
+      // @ts-ignore
+      const query = queryBuilder()
+        .datesAfter('my-key', new Date('2020-01-01T00:00:00.000Z'), {
+          equalToAndAfter: false,
+        })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                'my-key': {
+                  ['$gt']: '2020-01-01T00:00:00.000Z',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle a datesAfter with equalToAndAfter=false correctly', () => {
+      // @ts-ignore
+      const query = queryBuilder()
+        .datesAfter('my-key', '2020-01-01', { equalToAndAfter: false })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                'my-key': {
+                  ['$gt']: '2020-01-01',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle a datesAfter with equalToAndAfter correctly', () => {
+      // @ts-ignore
+      const query = queryBuilder().datesAfter('my-key', '2020-01-01').compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                'my-key': {
+                  ['$gte']: '2020-01-01',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle a datesBefore with equalToAndBefore=false correctly', () => {
+      // @ts-ignore
+      const query = queryBuilder()
+        .datesBefore('my-key', '2020-01-01', { equalToAndBefore: false })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                'my-key': {
+                  ['$lt']: '2020-01-01',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle a datesBefore with equalToAndBefore correctly', () => {
+      // @ts-ignore
+      const query = queryBuilder().datesBefore('my-key', '2020-01-01').compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                'my-key': {
+                  ['$lte']: '2020-01-01',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle a number with > correctly', () => {
+      const query = queryBuilder()
+        .property('test', 5, {
+          type: DatastoreValueType.number,
+          equalitySymbol: EqualitySymbol.gt,
+        })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: { $gt: 5 },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle a number with eq correctly', () => {
+      const query = queryBuilder()
+        .property('test', 5, { type: DatastoreValueType.number })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: { $eq: 5 },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle caseSensitive', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', { caseSensitive: true })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: 'value1',
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle date object correctly', () => {
+      const query = queryBuilder()
+        .property('test', new Date('2020-01-01T00:00:00.000Z'))
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: '2020-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle endsWith correctly', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', { endsWith: true })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $regex: 'value1$',
+                  $options: 'i',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle startsWith correctly', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', { startsWith: true })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $regex: '^value1',
+                  $options: 'i',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
     it('should handle a simple AND query correctly', () => {
       const query = queryBuilder()
         .property('test', 'value1')
@@ -11,16 +273,26 @@ describe('/src/lib.ts', () => {
         .property('test2', 'value2')
         .compile()
       const actual = toMongo(query)
-      const expected = {
-        test: {
-          $options: 'i',
-          $regex: '^value1$',
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $regex: '^value1$',
+                  $options: 'i',
+                },
+              },
+              {
+                test2: {
+                  $regex: '^value2$',
+                  $options: 'i',
+                },
+              },
+            ],
+          },
         },
-        test2: {
-          $options: 'i',
-          $regex: '^value2$',
-        },
-      }
+      ]
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
@@ -31,16 +303,26 @@ describe('/src/lib.ts', () => {
         .property('test2', 'value2')
         .compile()
       const actual = toMongo(query)
-      const expected = {
-        test: {
-          $options: 'i',
-          $regex: '^value1$',
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $options: 'i',
+                  $regex: '^value1$',
+                },
+              },
+              {
+                test2: {
+                  $options: 'i',
+                  $regex: '^value2$',
+                },
+              },
+            ],
+          },
         },
-        test2: {
-          $options: 'i',
-          $regex: '^value2$',
-        },
-      }
+      ]
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
@@ -51,9 +333,9 @@ describe('/src/lib.ts', () => {
         .property('test', 'value2')
         .compile()
       const actual = toMongo(query)
-      const expected = {
-        $and: [
-          {
+      const expected = [
+        {
+          $match: {
             $or: [
               {
                 test: {
@@ -69,8 +351,8 @@ describe('/src/lib.ts', () => {
               },
             ],
           },
-        ],
-      }
+        },
+      ]
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
@@ -87,9 +369,9 @@ describe('/src/lib.ts', () => {
         .property('prop4', 4)
         .compile()
       const actual = toMongo(query)
-      const expected = {
-        $and: [
-          {
+      const expected = [
+        {
+          $match: {
             $or: [
               {
                 test: {
@@ -98,41 +380,45 @@ describe('/src/lib.ts', () => {
                 },
               },
               {
-                test: {
-                  $options: 'i',
-                  $regex: '^value2$',
-                },
+                $and: [
+                  {
+                    test: {
+                      $options: 'i',
+                      $regex: '^value2$',
+                    },
+                  },
+                  {
+                    $and: [
+                      {
+                        prop2: {
+                          $options: 'i',
+                          $regex: '^2$',
+                        },
+                      },
+                      {
+                        $or: [
+                          {
+                            prop3: {
+                              $options: 'i',
+                              $regex: '^3$',
+                            },
+                          },
+                          {
+                            prop4: {
+                              $options: 'i',
+                              $regex: '^4$',
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
-          {
-            $or: [
-              {
-                prop2: {
-                  $options: 'i',
-                  $regex: '^2$',
-                },
-              },
-            ],
-          },
-          {
-            $or: [
-              {
-                prop3: {
-                  $options: 'i',
-                  $regex: '^3$',
-                },
-              },
-              {
-                prop4: {
-                  $options: 'i',
-                  $regex: '^4$',
-                },
-              },
-            ],
-          },
-        ],
-      }
+        },
+      ]
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })

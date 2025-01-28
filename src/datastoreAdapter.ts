@@ -14,6 +14,8 @@ import {
   toMongo,
 } from './lib'
 
+type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] }
+
 const create = ({
   mongoClient,
   databaseName,
@@ -24,7 +26,7 @@ const create = ({
   getCollectionNameForModel?: <T extends DataDescription>(
     model: ModelType<T>
   ) => string
-}): DatastoreAdapter => {
+}): WithRequired<DatastoreAdapter, 'bulkInsert' | 'count'> => {
   const db = mongoClient.db(databaseName)
 
   const search = <T extends DataDescription>(
@@ -52,7 +54,7 @@ const create = ({
       return limited.toArray().then((result: any[]) => {
         return {
           instances: result.map(x => omit(x, '_id')),
-          page: null,
+          page: undefined,
         }
       })
     })
@@ -85,7 +87,7 @@ const create = ({
       const data = await instance.toObj()
       const options = { upsert: true }
       // @ts-ignore
-      const insertData = merge({}, data, { _id: data[key] })
+      const insertData = merge(data, { _id: data[key] })
       return (
         collection
           // @ts-ignore
@@ -114,9 +116,6 @@ const create = ({
 
       const query = (await Promise.all(instances.map(x => x.toObj<T>()))).map(
         obj => {
-          if (!obj) {
-            throw new Error(`An object was empty`)
-          }
           // @ts-ignore
           const doc = merge({}, obj, { _id: obj[key] })
           return {
@@ -149,6 +148,14 @@ const create = ({
     })
   }
 
+  const count = <T extends DataDescription>(
+    model: ModelType<T>
+  ): Promise<number> => {
+    const collectionName = getCollectionNameForModel<T>(model)
+    const collection = db.collection(collectionName)
+    return collection.count()
+  }
+
   return {
     bulkInsert,
     // @ts-ignore
@@ -156,6 +163,7 @@ const create = ({
     retrieve,
     save,
     delete: deleteObj,
+    count,
   }
 }
 
