@@ -69,8 +69,9 @@ const processMongoArray = (
       $and: o.map(handleMongoQuery),
     }
   }
-  const threes = threeitize(o)
-  return threes.toReversed().reduce((acc, [a, l, b]) => {
+  // eslint-disable-next-line functional/immutable-data
+  const threes = threeitize(o).reverse()
+  return threes.reduce((acc, [a, l, b]) => {
     const aQuery = handleMongoQuery(a)
     // After the first time, acc is always the previous.
     if (Object.entries(acc).length > 0) {

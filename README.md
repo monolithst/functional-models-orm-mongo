@@ -10,11 +10,15 @@ A [Functional Models](https://monolithst.github.io/functional-models/) datastore
 
 ```javascript
 const { MongoClient } = require('mongodb')
-const { createOrm } from 'functional-models'
-const { datastoreAdapter: mongoAdapter } = require('functional-models-orm-mongo')
+const { createOrm } = require('functional-models')
+const {
+  datastoreAdapter: mongoAdapter,
+} = require('functional-models-orm-mongo')
 
-const datastoreAdapter = mongoAdapter ({ mongoClient: client, databaseName: 'your-database-name' })
+const datastoreAdapter = mongoAdapter({
+  mongoClient: client,
+  databaseName: 'your-database-name',
+})
 
 const orm = createOrm({ datastoreAdapter })
-
 ```

@@ -6,6 +6,7 @@
   "types": "index.d.ts",
   "scripts": {
     "prettier": "prettier --write .",
+    "prettier:check": "prettier -c .",
     "eslint": "eslint .",
     "test": "mocha -r ts-node/register test/**/*.test.ts",
     "test:coverage": "nyc npm run test",
@@ -33,11 +34,6 @@
     "url": "https://github.com/monolithst/functional-models-orm-mongo/issues"
   },
   "author": "Mike Cornwell",
-  "dependencies": {
-    "functional-models": "^3.0.12",
-    "lodash": "^4.17.21",
-    "mongodb": "^6.12.0"
-  },
   "nyc": {
     "branches": 100,
     "lines": 100,
@@ -66,23 +62,31 @@
     ],
     "report-dir": "coverage"
   },
+  "dependencies": {
+    "functional-models": "^3.0.12",
+    "lodash": "^4.17.21",
+    "mongodb": "^6.12.0"
+  },
   "devDependencies": {
     "@cucumber/cucumber": "^11.2.0",
+    "@eslint/compat": "^1.2.0",
+    "@eslint/eslintrc": "^3.1.0",
+    "@eslint/js": "^9.12.0",
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@types/chai": "^4.3.16",
     "@types/chai-as-promised": "^7.1.8",
     "@types/lodash": "^4.17.1",
     "@types/mocha": "^10.0.6",
     "@types/sinon": "^17.0.3",
-    "@typescript-eslint/eslint-plugin": "^7.8.0",
-    "babel-eslint": "^10.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.20.0",
+    "@typescript-eslint/parser": "^8.20.0",
     "chai": "^4.3.0",
     "chai-as-promised": "^7.1.2",
-    "eslint": "^8.57.0",
+    "eslint": "^9.18.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-import-resolver-typescript": "^3.6.1",
-    "eslint-plugin-functional": "^6.5.1",
-    "eslint-plugin-import": "^2.29.1",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-functional": "~7.1.0",
+    "eslint-plugin-import": "^2.31.0",
     "mocha": "^10.4.0",
     "nodemon": "^3.1.9",
     "nyc": "^15.1.0",
