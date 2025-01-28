@@ -34,4 +34,4 @@ jobs:
         run: cp ./env-cucumber.json .env-cucumber.json
 
       - name: Run Cucumber Tests
-        run: npm run tests:feature
+        run: npm run test:feature
