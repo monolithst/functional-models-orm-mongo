@@ -1,15 +1,19 @@
 import {
   DataDescription,
+  DatastoreValueType,
   EqualitySymbol,
   isPropertyBasedQuery,
   ModelType,
   OrmSearch,
+  PropertyInstance,
   PropertyQuery,
+  PropertyType,
   QueryTokens,
   threeitize,
   validateOrmSearch,
 } from 'functional-models'
 import kebabCase from 'lodash/kebabCase'
+import merge from 'lodash/merge'
 
 const _equalitySymbolToMongoSymbol = {
   [EqualitySymbol.eq]: '$eq',
@@ -100,7 +104,8 @@ const handleMongoQuery = (o: QueryTokens) => {
     if (o.type === 'datesBefore') {
       return {
         [o.key]: {
-          [`$lt${o.options.equalToAndBefore ? 'e' : ''}`]: o.date,
+          [`$lt${o.options.equalToAndBefore ? 'e' : ''}`]:
+            o.valueType === DatastoreValueType.date ? new Date(o.date) : o.date,
         },
       }
     }
@@ -108,7 +113,8 @@ const handleMongoQuery = (o: QueryTokens) => {
     if (o.type === 'datesAfter') {
       return {
         [o.key]: {
-          [`$gt${o.options.equalToAndAfter ? 'e' : ''}`]: o.date,
+          [`$gt${o.options.equalToAndAfter ? 'e' : ''}`]:
+            o.valueType === DatastoreValueType.date ? new Date(o.date) : o.date,
         },
       }
     }
@@ -129,4 +135,29 @@ const toMongo = (o: OrmSearch) => {
   ]
 }
 
-export { getCollectionNameForModel, toMongo }
+const formatForMongo = <T extends DataDescription>(
+  data: T,
+  model: ModelType<T>
+): object => {
+  return Object.entries<PropertyInstance<any>>(
+    model.getModelDefinition().properties
+  ).reduce((acc, [key, property]) => {
+    const type = property.getPropertyType()
+    switch (type) {
+      case PropertyType.Datetime: {
+        // @ts-ignore
+        const value = acc[key] as string | Date
+        if (value) {
+          const obj = { [key]: new Date(value) }
+          return merge(acc, obj)
+        }
+        break
+      }
+      default:
+        break
+    }
+    return acc
+  }, data)
+}
+
+export { formatForMongo, getCollectionNameForModel, toMongo }

@@ -11,6 +11,7 @@ import merge from 'lodash/merge'
 import omit from 'lodash/omit'
 import {
   getCollectionNameForModel as defaultCollectionName,
+  formatForMongo,
   toMongo,
 } from './lib'
 
@@ -84,16 +85,17 @@ const create = ({
       const collectionName = getCollectionNameForModel<T>(model)
       const collection = db.collection(collectionName)
       const key = model.getModelDefinition().primaryKeyName
-      const data = await instance.toObj()
+      const data = (await instance.toObj<T>()) as T
+      const cleanedUp = formatForMongo(data, model)
       const options = { upsert: true }
       // @ts-ignore
-      const insertData = merge(data, { _id: data[key] })
+      const insertData = merge(cleanedUp, { _id: cleanedUp[key] })
       return (
         collection
           // @ts-ignore
-          .updateOne({ _id: data[key] }, { $set: insertData }, options)
+          .updateOne({ _id: cleanedUp[key] }, { $set: insertData }, options)
           .then(() => {
-            return data
+            return cleanedUp
           })
       )
     })

@@ -2,11 +2,87 @@ import { assert } from 'chai'
 import {
   DatastoreValueType,
   EqualitySymbol,
+  PropertyType,
   queryBuilder,
 } from 'functional-models'
-import { getCollectionNameForModel, toMongo } from '../../src/lib'
+import {
+  formatForMongo,
+  getCollectionNameForModel,
+  toMongo,
+} from '../../src/lib'
 
 describe('/src/lib.ts', () => {
+  describe('#formatForMongo()', () => {
+    it('should properly handle a date', () => {
+      const theDate = new Date()
+      const input = [
+        {
+          myDate: theDate.toISOString(),
+        },
+        {
+          getModelDefinition: () => ({
+            properties: {
+              myDate: {
+                getPropertyType: () => PropertyType.Date,
+              },
+            },
+          }),
+        },
+      ]
+      // @ts-ignore
+      const actual = formatForMongo(...input)
+      const expected = {
+        myDate: theDate.toISOString(),
+      }
+      assert.deepEqual(actual, expected)
+    })
+    it('should properly handle a datetime when its undefined', () => {
+      const theDate = new Date()
+      const input = [
+        {
+          myDate: undefined,
+        },
+        {
+          getModelDefinition: () => ({
+            properties: {
+              myDate: {
+                getPropertyType: () => PropertyType.Datetime,
+              },
+            },
+          }),
+        },
+      ]
+      // @ts-ignore
+      const actual = formatForMongo(...input)
+      const expected = {
+        myDate: undefined,
+      }
+      assert.deepEqual(actual, expected)
+    })
+    it('should properly handle a datetime by converting a string to a datetime', () => {
+      const theDate = new Date()
+      const input = [
+        {
+          myDate: theDate.toISOString(),
+        },
+        {
+          getModelDefinition: () => ({
+            properties: {
+              myDate: {
+                getPropertyType: () => PropertyType.Datetime,
+              },
+            },
+          }),
+        },
+      ]
+      // @ts-ignore
+      const actual = formatForMongo(...input)
+      const expected = {
+        myDate: new Date(theDate),
+      }
+      assert.deepEqual(actual, expected)
+    })
+  })
   describe('#getCollectionNameForModel()', () => {
     it('should get the expected name', () => {
       // @ts-ignore
@@ -49,7 +125,7 @@ describe('/src/lib.ts', () => {
             $and: [
               {
                 'my-key': {
-                  ['$gt']: '2020-01-01T00:00:00.000Z',
+                  ['$gt']: new Date('2020-01-01T00:00:00.000Z'),
                 },
               },
             ],
@@ -62,7 +138,10 @@ describe('/src/lib.ts', () => {
     it('should handle a datesAfter with equalToAndAfter=false correctly', () => {
       // @ts-ignore
       const query = queryBuilder()
-        .datesAfter('my-key', '2020-01-01', { equalToAndAfter: false })
+        .datesAfter('my-key', '2020-01-01', {
+          valueType: DatastoreValueType.string,
+          equalToAndAfter: false,
+        })
         .compile()
       const actual = toMongo(query)
       const expected = [
@@ -83,7 +162,11 @@ describe('/src/lib.ts', () => {
     })
     it('should handle a datesAfter with equalToAndAfter correctly', () => {
       // @ts-ignore
-      const query = queryBuilder().datesAfter('my-key', '2020-01-01').compile()
+      const query = queryBuilder()
+        .datesAfter('my-key', '2020-01-01', {
+          valueType: DatastoreValueType.string,
+        })
+        .compile()
       const actual = toMongo(query)
       const expected = [
         {
@@ -104,7 +187,10 @@ describe('/src/lib.ts', () => {
     it('should handle a datesBefore with equalToAndBefore=false correctly', () => {
       // @ts-ignore
       const query = queryBuilder()
-        .datesBefore('my-key', '2020-01-01', { equalToAndBefore: false })
+        .datesBefore('my-key', '2020-01-01', {
+          valueType: DatastoreValueType.string,
+          equalToAndBefore: false,
+        })
         .compile()
       const actual = toMongo(query)
       const expected = [
@@ -125,7 +211,11 @@ describe('/src/lib.ts', () => {
     })
     it('should handle a datesBefore with equalToAndBefore correctly', () => {
       // @ts-ignore
-      const query = queryBuilder().datesBefore('my-key', '2020-01-01').compile()
+      const query = queryBuilder()
+        .datesBefore('my-key', '2020-01-01', {
+          valueType: DatastoreValueType.string,
+        })
+        .compile()
       const actual = toMongo(query)
       const expected = [
         {
