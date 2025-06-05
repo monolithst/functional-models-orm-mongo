@@ -31,6 +31,9 @@ const getCollectionNameForModel = <T extends DataDescription>(
 
 const buildMongoFindValue = (query: PropertyQuery) => {
   const value = query.value
+  if (!value) {
+    return { [query.key]: null }
+  }
   // Is this a javascript date??
   if (value && value.toISOString) {
     return { [query.key]: value.toISOString() }

@@ -1,6 +1,6 @@
 {
   "name": "functional-models-orm-mongo",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "An ORM for functional-models that uses mongodb.",
   "main": "index.js",
   "types": "index.d.ts",

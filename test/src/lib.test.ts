@@ -233,6 +233,23 @@ describe('/src/lib.ts', () => {
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
+    it('should handle null correctly', () => {
+      const query = queryBuilder().property('test', null).compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: null,
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
     it('should handle a number with > correctly', () => {
       const query = queryBuilder()
         .property('test', 5, {
