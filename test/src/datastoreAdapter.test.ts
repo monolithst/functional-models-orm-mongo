@@ -44,6 +44,7 @@ const setup = () => {
   const find = sinon.stub().returns(cursorInsides)
   const findOne = sinon.stub().resolves(undefined)
   const bulkWrite = sinon.stub().resolves(undefined)
+  const deleteMany = sinon.stub().resolves(undefined)
   const updateOne = sinon.stub().resolves(undefined)
   const deleteOne = sinon.stub().resolves(undefined)
   const count = sinon.stub().resolves(0)
@@ -53,6 +54,7 @@ const setup = () => {
     findOne,
     aggregate,
     bulkWrite,
+    deleteMany,
     deleteOne,
     count,
   }
@@ -173,6 +175,24 @@ describe('/src/datastoreAdapter.ts', () => {
         await instance.delete(model, 1)
         const actual = collection.getCall(0).args[0]
         const expected = 'test-me'
+        assert.deepEqual(actual, expected)
+      })
+    })
+    describe('#bulkDelete()', () => {
+      it('should delete the expected values', async () => {
+        const { mongoClient, collectionOperations } = setup()
+        const getCollectionNameForModel = sinon.stub().returns('test-me')
+        const instance = mongoDatastore({
+          mongoClient,
+          databaseName: DATABASE_NAME,
+          getCollectionNameForModel,
+        })
+        const model = model1()
+        await instance.bulkDelete(model, ['id-1', 'id-2', 'id-3'])
+        const actual = collectionOperations.deleteMany.getCall(0).args[0]
+        const expected = {
+          _id: { $in: ['id-1', 'id-2', 'id-3'] },
+        }
         assert.deepEqual(actual, expected)
       })
     })

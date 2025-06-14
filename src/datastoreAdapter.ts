@@ -27,7 +27,7 @@ const create = ({
   getCollectionNameForModel?: <T extends DataDescription>(
     model: ModelType<T>
   ) => string
-}): WithRequired<DatastoreAdapter, 'bulkInsert' | 'count'> => {
+}): WithRequired<DatastoreAdapter, 'bulkInsert' | 'count' | 'bulkDelete'> => {
   const db = mongoClient.db(databaseName)
 
   const search = <T extends DataDescription>(
@@ -158,8 +158,22 @@ const create = ({
     return collection.count()
   }
 
+  const bulkDelete = <T extends DataDescription>(
+    model: ModelType<T>,
+    ids: readonly PrimaryKeyType[]
+  ) => {
+    return Promise.resolve().then(async () => {
+      const collectionName = getCollectionNameForModel<T>(model)
+      const collection = db.collection(collectionName)
+      return collection.deleteMany({ _id: { $in: ids } }).then(() => {
+        return undefined
+      })
+    })
+  }
+
   return {
     bulkInsert,
+    bulkDelete,
     // @ts-ignore
     search,
     retrieve,

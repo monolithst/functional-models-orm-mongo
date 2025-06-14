@@ -168,15 +168,18 @@ const MODELS: Record<
       models: [ModelA] as ModelType<any>[],
       instances: [
         ModelA.create({
+          id: 'edf73dba-216a-4e10-a38f-398a4b38350a',
           name: 'name-2',
           age: 2,
         }),
         ModelA.create({
+          id: '2c3e6547-2d6b-44c3-ad2c-1220a3d305be',
           name: 'name-3',
           age: 10,
           datetime: new Date('2020-02-01T00:00:00.000Z'),
         }),
         ModelA.create({
+          id: 'ed1dc8ff-fdc5-401c-a229-8566a418ceb5',
           name: 'name-1',
           age: 1,
           datetime: new Date('2020-01-01T00:00:00.000Z'),
@@ -344,3 +347,14 @@ Then(/^(\d+) instances are found$/, function (count: number) {
   const expected = count
   assert.equal(actual, expected)
 })
+
+When(
+  'bulk delete is executed on model named {word} with ids {string}',
+  async function (modelPluralName: string, ids: string) {
+    const model = this.models.find(
+      x => x.getModelDefinition().pluralName === modelPluralName
+    )
+    const idsArray = ids.split(',').map(x => x.trim())
+    await model.bulkDelete(idsArray)
+  }
+)
