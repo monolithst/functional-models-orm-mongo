@@ -1,6 +1,6 @@
 {
   "name": "functional-models-orm-mongo",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "An ORM for functional-models that uses mongodb.",
   "main": "index.js",
   "types": "index.d.ts",
@@ -63,7 +63,7 @@
     "report-dir": "coverage"
   },
   "dependencies": {
-    "functional-models": "^3.2.1",
+    "functional-models": "^3.3.0",
     "lodash": "^4.17.21",
     "mongodb": "^6.12.0"
   },

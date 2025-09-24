@@ -21,6 +21,7 @@ const _equalitySymbolToMongoSymbol = {
   [EqualitySymbol.gte]: '$gte',
   [EqualitySymbol.lt]: '$lt',
   [EqualitySymbol.lte]: '$lte',
+  [EqualitySymbol.ne]: '$ne',
 }
 
 const getCollectionNameForModel = <T extends DataDescription>(
@@ -28,6 +29,36 @@ const getCollectionNameForModel = <T extends DataDescription>(
 ) => {
   return kebabCase(model.getName()).toLowerCase()
 }
+
+// Module-level pure helpers for string query handling
+const escapeRegExp = (s: string): string =>
+  s.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
+
+const buildStringPattern = (
+  raw: string,
+  startsWith: boolean,
+  endsWith: boolean,
+  includes: boolean
+): string => {
+  const escaped = escapeRegExp(raw)
+  if (startsWith) {
+    return `^${escaped}`
+  }
+  if (endsWith) {
+    return `${escaped}$`
+  }
+  if (includes) {
+    return `${escaped}`
+  }
+  // default: exact match
+  return `^${escaped}$`
+}
+
+const regexObjectForPattern = (
+  pattern: string,
+  caseSensitive: boolean
+): { $regex: string; $options?: string } =>
+  caseSensitive ? { $regex: pattern } : { $regex: pattern, $options: 'i' }
 
 const buildMongoFindValue = (query: PropertyQuery) => {
   const value = query.value
@@ -39,16 +70,34 @@ const buildMongoFindValue = (query: PropertyQuery) => {
     return { [query.key]: value.toISOString() }
   }
   if (query.valueType === 'string') {
-    const options = !query.options.caseSensitive ? { $options: 'i' } : {}
-    if (query.options.startsWith) {
-      return { [query.key]: { $regex: `^${value}`, ...options } }
+    const caseSensitive = Boolean(query.options.caseSensitive)
+    const startsWith = Boolean(query.options.startsWith)
+    const endsWith = Boolean(query.options.endsWith)
+    const includes = Boolean(query.options.includes)
+
+    if (
+      query.equalitySymbol !== EqualitySymbol.eq &&
+      query.equalitySymbol !== EqualitySymbol.ne
+    ) {
+      throw new Error(
+        `Symbol ${query.equalitySymbol} is unhandled for string type`
+      )
     }
-    if (query.options.endsWith) {
-      return { [query.key]: { $regex: `${value}$`, ...options } }
+
+    const raw = String(value)
+    const pattern = buildStringPattern(raw, startsWith, endsWith, includes)
+    const regexObj = regexObjectForPattern(pattern, caseSensitive)
+
+    if (query.equalitySymbol === EqualitySymbol.ne) {
+      const isPlainExact =
+        !startsWith && !endsWith && !includes && caseSensitive
+      return isPlainExact
+        ? { [query.key]: { $ne: raw } }
+        : { [query.key]: { $not: regexObj } }
     }
-    if (!query.options.caseSensitive) {
-      return { [query.key]: { $regex: `^${value}$`, ...options } }
-    }
+
+    const useRegex = startsWith || endsWith || includes || !caseSensitive
+    return useRegex ? { [query.key]: regexObj } : { [query.key]: raw }
   }
 
   if (query.valueType === 'number') {

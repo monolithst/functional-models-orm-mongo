@@ -329,6 +329,35 @@ describe('/src/lib.ts', () => {
       // @ts-ignore
       assert.deepEqual(actual, expected)
     })
+    it('should handle object values correctly', () => {
+      // Raw query to exercise non-string/number fallback
+      // @ts-ignore
+      const actual = toMongo({
+        query: [
+          {
+            type: 'property',
+            key: 'test',
+            value: { a: 1 },
+            valueType: DatastoreValueType.object,
+            equalitySymbol: EqualitySymbol.eq,
+            options: {},
+          },
+        ],
+      })
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: { a: 1 },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
     it('should handle endsWith correctly', () => {
       const query = queryBuilder()
         .property('test', 'value1', { endsWith: true })
@@ -372,6 +401,137 @@ describe('/src/lib.ts', () => {
       ]
       // @ts-ignore
       assert.deepEqual(actual, expected)
+    })
+    it('should handle includes correctly', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', { includes: true })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $regex: 'value1',
+                  $options: 'i',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle startsWith with caseSensitive correctly', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', { startsWith: true, caseSensitive: true })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $regex: '^value1',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle endsWith with caseSensitive correctly', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', { endsWith: true, caseSensitive: true })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $regex: 'value1$',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle not-equals plain caseSensitive exact', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', {
+          caseSensitive: true,
+          equalitySymbol: EqualitySymbol.ne,
+        })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $ne: 'value1',
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should handle not-equals with includes using $not and regex', () => {
+      const query = queryBuilder()
+        .property('test', 'value1', {
+          includes: true,
+          equalitySymbol: EqualitySymbol.ne,
+        })
+        .compile()
+      const actual = toMongo(query)
+      const expected = [
+        {
+          $match: {
+            $and: [
+              {
+                test: {
+                  $not: { $regex: 'value1', $options: 'i' },
+                },
+              },
+            ],
+          },
+        },
+      ]
+      // @ts-ignore
+      assert.deepEqual(actual, expected)
+    })
+    it('should throw for unsupported equalitySymbol on strings', () => {
+      assert.throws(() => {
+        // Build a raw query to bypass builder-side validation and hit lib directly
+        // @ts-ignore
+        toMongo({
+          query: [
+            {
+              type: 'property',
+              key: 'test',
+              value: 'value1',
+              // @ts-ignore
+              equalitySymbol: EqualitySymbol.gt,
+              valueType: DatastoreValueType.string,
+              options: {},
+            },
+          ],
+        })
+      }, 'Symbol > is unhandled for string type')
     })
     it('should handle a simple AND query correctly', () => {
       const query = queryBuilder()
