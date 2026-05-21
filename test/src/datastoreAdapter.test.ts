@@ -1,6 +1,7 @@
 import chai, { assert } from 'chai'
 import asPromised from 'chai-as-promised'
 import {
+  DatetimeProperty,
   Model,
   OrmModel,
   PrimaryKeyUuidProperty,
@@ -20,6 +21,11 @@ type Model1 = {
   name?: string
 }
 
+type ModelWithDatetime = {
+  id: string
+  createdAt: string
+}
+
 const model1 = () => {
   return Model<Model1>({
     pluralName: 'Model1',
@@ -29,6 +35,17 @@ const model1 = () => {
       name: TextProperty(),
     },
   }) as OrmModel<Model1>
+}
+
+const modelWithDatetime = () => {
+  return Model<ModelWithDatetime>({
+    pluralName: 'ModelWithDatetime',
+    namespace: 'functional-models-orm-mongo',
+    properties: {
+      id: PrimaryKeyUuidProperty(),
+      createdAt: DatetimeProperty({ required: true }),
+    },
+  }) as OrmModel<ModelWithDatetime>
 }
 
 const setup = () => {
@@ -269,6 +286,31 @@ describe('/src/datastoreAdapter.ts', () => {
         ]
 
         assert.deepEqual(actual, expected)
+      })
+      it('should format DatetimeProperty values as Date objects for mongo (same as save)', async () => {
+        const { mongoClient, collectionOperations } = setup()
+        const getCollectionNameForModel = sinon.stub().returns('test-me')
+        const instance = mongoDatastore({
+          mongoClient,
+          databaseName: DATABASE_NAME,
+          getCollectionNameForModel,
+        })
+        const model = modelWithDatetime()
+        const createdAt = new Date('2024-06-15T12:30:00.000Z')
+        await instance.bulkInsert(model, [
+          model.create({
+            id: 'id-with-datetime',
+            createdAt: createdAt.toISOString(),
+          }),
+        ])
+        const bulkOps = collectionOperations.bulkWrite.getCall(0).args[0]
+        const createdAtInMongo = bulkOps[0].updateOne.update.$set.createdAt
+        assert.instanceOf(
+          createdAtInMongo,
+          Date,
+          'bulkInsert should pass Date objects for DatetimeProperty, not raw ISO strings from toObj()'
+        )
+        assert.deepEqual(createdAtInMongo, createdAt)
       })
     })
     describe('#search()', () => {

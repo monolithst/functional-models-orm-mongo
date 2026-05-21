@@ -27,9 +27,7 @@ const _equalitySymbolToMongoSymbol = {
 const getCollectionNameForModel = <T extends DataDescription>(
   model: ModelType<T>
 ) => {
-  const name = model.getName()
-    .replaceAll('@', '')
-    .replaceAll('/', '-')
+  const name = model.getName().replaceAll('@', '').replaceAll('/', '-')
   return kebabCase(name).toLowerCase()
 }
 

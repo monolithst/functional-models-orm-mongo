@@ -118,8 +118,9 @@ const create = ({
 
       const query = (await Promise.all(instances.map(x => x.toObj<T>()))).map(
         obj => {
+          const cleanedUp = formatForMongo(obj as unknown as T, model)
           // @ts-ignore
-          const doc = merge({}, obj, { _id: obj[key] })
+          const doc = merge({}, cleanedUp, { _id: cleanedUp[key] })
           return {
             updateOne: {
               filter: { _id: doc._id },
